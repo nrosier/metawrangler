@@ -202,7 +202,12 @@ jobs:
           docker run -d --name mw-frontend-smoke -p 8080:8080 "$tag"
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8080/ > /dev/null 2>&1; then
-              echo "Frontend image serves."
+              # Verify security headers set by Nginx
+              curl -fsS -I http://127.0.0.1:8080/ | grep -i 'x-content-type-options' \
+                || { echo 'Missing X-Content-Type-Options header.' >&2; exit 1; }
+              curl -fsS -I http://127.0.0.1:8080/ | grep -i 'x-frame-options' \
+                || { echo 'Missing X-Frame-Options header.' >&2; exit 1; }
+              echo "Frontend image serves and sets security headers."
               docker rm -f mw-frontend-smoke > /dev/null
               exit 0
             fi

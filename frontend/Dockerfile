@@ -9,6 +9,9 @@ RUN npm run build
 # ── Stage 2: Serve with Nginx (UBI9 minimal) ─────────────────────────────────
 FROM registry.redhat.io/ubi9/nginx-122:latest
 
+ARG GITHUB_SHA=unknown
+LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
+
 USER root
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf

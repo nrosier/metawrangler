@@ -6,7 +6,7 @@
 
 services:
   backend:
-    image: ${METAWRANGLER_IMAGE:-niqck/metawrangler-backend:latest}
+    image: ${METAWRANGLER_BACKEND_IMAGE:-metawrangler-backend:latest}
     container_name: metawrangler-backend
     restart: unless-stopped
     init: true
@@ -35,7 +35,7 @@ services:
       cloudflare.tunnel.enable: "false"
 
   frontend:
-    image: ${METAWRANGLER_FRONTEND_IMAGE:-niqck/metawrangler-frontend:latest}
+    image: ${METAWRANGLER_FRONTEND_IMAGE:-metawrangler-frontend:latest}
     container_name: metawrangler-frontend
     restart: unless-stopped
     init: true
