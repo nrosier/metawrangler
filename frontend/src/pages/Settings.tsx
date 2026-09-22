@@ -31,7 +31,7 @@ export function SettingsPage() {
     mutationFn: api.mounts.create,
     onSuccess: () => {
       toast.success("Mount added");
-      queryClient.invalidateQueries({ queryKey: ["mounts"] });
+      void queryClient.invalidateQueries({ queryKey: ["mounts"] });
       setShowAdd(false);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -41,7 +41,7 @@ export function SettingsPage() {
     mutationFn: api.mounts.remove,
     onSuccess: () => {
       toast.success("Mount removed");
-      queryClient.invalidateQueries({ queryKey: ["mounts"] });
+      void queryClient.invalidateQueries({ queryKey: ["mounts"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -51,7 +51,7 @@ export function SettingsPage() {
       api.mounts.update(id, data),
     onSuccess: () => {
       toast.success("Mount updated");
-      queryClient.invalidateQueries({ queryKey: ["mounts"] });
+      void queryClient.invalidateQueries({ queryKey: ["mounts"] });
       setEditMount(null);
     },
     onError: (err: Error) => toast.error(err.message),

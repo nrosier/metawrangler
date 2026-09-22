@@ -9,7 +9,7 @@ import { auditLog } from "../db/schema.js";
 export const auditRouter = new Hono();
 
 // GET /api/audit — paginated audit log for the current user
-auditRouter.get("/", async (c) => {
+auditRouter.get("/", (c) => {
   const user = c.get("user");
   const limit = Math.min(Number(c.req.query("limit") ?? 100), 500);
   const offset = Number(c.req.query("offset") ?? 0);
@@ -24,7 +24,7 @@ auditRouter.get("/", async (c) => {
     .all()
     .map((e) => ({
       ...e,
-      detail: e.detail ? JSON.parse(e.detail) : null,
+      detail: e.detail ? (JSON.parse(e.detail) as Record<string, unknown>) : null,
     }));
 
   return c.json(entries);

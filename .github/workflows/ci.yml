@@ -40,6 +40,9 @@ jobs:
 
       # Checks the production dependency tree on every push/PR independently
       # of any image scanning — catches newly disclosed CVEs before they ship.
+      - name: Tests
+        run: npm test
+
       - name: Dependency audit
         run: npm audit --omit=dev --audit-level=high
 

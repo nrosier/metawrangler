@@ -68,7 +68,7 @@ export function AuditLogPage() {
                       ? "hover:bg-surface cursor-pointer"
                       : ""
                   }`}
-                  onClick={() => e.jobId && navigate(`/jobs/${e.jobId}`)}
+                  onClick={() => { if (e.jobId) void navigate(`/jobs/${e.jobId}`); }}
                 >
                   <td className="px-3 py-2 text-xs whitespace-nowrap">
                     {formatDate(e.createdAt)}

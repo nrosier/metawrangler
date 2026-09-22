@@ -99,7 +99,7 @@ mountsRouter.post("/", zValidator("json", createMountSchema), async (c) => {
 });
 
 // PATCH /api/mounts/:id — update name or type (not path)
-mountsRouter.patch("/:id", zValidator("json", updateMountSchema), async (c) => {
+mountsRouter.patch("/:id", zValidator("json", updateMountSchema), (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
   const body = c.req.valid("json");
@@ -122,7 +122,7 @@ mountsRouter.patch("/:id", zValidator("json", updateMountSchema), async (c) => {
 });
 
 // DELETE /api/mounts/:id
-mountsRouter.delete("/:id", async (c) => {
+mountsRouter.delete("/:id", (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
 

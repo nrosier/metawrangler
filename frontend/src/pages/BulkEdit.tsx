@@ -8,7 +8,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   AlertTriangle,
-  CheckCircle2,
   ChevronLeft,
   FlaskConical,
   Pencil,
@@ -117,7 +116,7 @@ export function BulkEditPage() {
     mutationFn: api.jobs.create,
     onSuccess: ({ jobId }) => {
       toast.success(dryRun ? "Dry-run job started" : "Edit job started");
-      navigate(`/jobs/${jobId}`);
+      void navigate(`/jobs/${jobId}`);
     },
     onError: (err: Error) => {
       toast.error(`Failed to start job: ${err.message}`);
@@ -128,7 +127,7 @@ export function BulkEditPage() {
     return (
       <div className="p-8 text-center">
         <p className="text-muted">No files selected.</p>
-        <button className="btn-ghost mt-3" onClick={() => navigate("/")}>
+        <button className="btn-ghost mt-3" onClick={() => { void navigate("/"); }}>
           <ChevronLeft size={14} /> Back to Browse
         </button>
       </div>
@@ -188,7 +187,7 @@ export function BulkEditPage() {
   return (
     <div className="flex flex-col gap-5 max-w-3xl">
       <div className="flex items-center gap-2">
-        <button className="btn-ghost" onClick={() => navigate("/")}>
+        <button className="btn-ghost" onClick={() => { void navigate("/"); }}>
           <ChevronLeft size={14} />
         </button>
         <h1 className="text-lg font-semibold">Bulk Edit</h1>

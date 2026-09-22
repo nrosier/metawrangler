@@ -9,33 +9,42 @@ import { db } from "../db/index.js";
 import { jobs } from "../db/schema.js";
 import { jobEvents } from "../services/jobRunner.js";
 import { logger } from "../lib/logger.js";
-import type { WsMessage } from "../types/index.js";
+import type { Job, JobStatus, WsMessage } from "../types/index.js";
 
 export const wsRouter = new Hono();
 
 wsRouter.get(
   "/jobs/:id",
   upgradeWebSocket((c) => {
-    const jobId = c.req.param("id");
-    // Note: auth headers are not available in WS upgrade in all clients;
-    // Caddy forward-auth already validates the session before the upgrade reaches us.
+    const jobId = c.req.param("id") ?? "";
+    // Auth is validated by Traefik forward-auth before the WS upgrade reaches us.
 
     return {
       onOpen(_, ws) {
         logger.debug({ jobId }, "WebSocket client connected");
 
+        if (!jobId) {
+          ws.send(JSON.stringify({ type: "error", message: "Missing job id" } satisfies WsMessage));
+          ws.close();
+          return;
+        }
+
         // Send current job state immediately
-        const job = db.select().from(jobs).where(eq(jobs.id, jobId)).get();
-        if (!job) {
+        const row = db.select().from(jobs).where(eq(jobs.id, jobId)).get();
+        if (!row) {
           ws.send(JSON.stringify({ type: "error", message: "Job not found" } satisfies WsMessage));
           ws.close();
           return;
         }
 
+        // Cast the DB row's string status to the typed JobStatus
+        const job = row as unknown as Job;
+
         ws.send(JSON.stringify({ type: "job_update", job } satisfies WsMessage));
 
         // If job is already complete, close immediately
-        if (job.status === "done" || job.status === "failed") {
+        const doneStatuses: JobStatus[] = ["done", "failed", "cancelled"];
+        if (doneStatuses.includes(job.status)) {
           ws.send(JSON.stringify({ type: "job_complete", job } satisfies WsMessage));
           ws.close();
           return;

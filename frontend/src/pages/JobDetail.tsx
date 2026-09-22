@@ -71,8 +71,8 @@ export function JobDetailPage() {
     mutationFn: () => api.jobs.undo(id!),
     onSuccess: ({ jobId }) => {
       toast.success("Undo job started");
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      navigate(`/jobs/${jobId}`);
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void navigate(`/jobs/${jobId}`);
     },
     onError: (err: Error) => {
       toast.error(`Undo failed: ${err.message}`);
@@ -95,7 +95,7 @@ export function JobDetailPage() {
   return (
     <div className="flex flex-col gap-4 max-w-3xl">
       <div className="flex items-center gap-2">
-        <button className="btn-ghost" onClick={() => navigate("/jobs")}>
+        <button className="btn-ghost" onClick={() => { void navigate("/jobs"); }}>
           <ChevronLeft size={14} />
         </button>
         <h1 className="text-lg font-semibold">Job</h1>

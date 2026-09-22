@@ -15,7 +15,7 @@ import { logger } from "../lib/logger.js";
 export const scanRouter = new Hono();
 
 // GET /api/scan/:mountId — list all MKV files in a mount
-scanRouter.get("/:mountId", async (c) => {
+scanRouter.get("/:mountId", (c) => {
   const user = c.get("user");
   const mountId = c.req.param("mountId");
 
@@ -38,8 +38,7 @@ scanRouter.get("/:mountId", async (c) => {
 // GET /api/scan/:mountId/subdir — list files under a specific subdir
 const subdirSchema = z.object({ subdir: z.string().min(1) });
 
-scanRouter.get("/:mountId/subdir", zValidator("query", subdirSchema), async (c) => {
-  const user = c.get("user");
+scanRouter.get("/:mountId/subdir", zValidator("query", subdirSchema), (c) => {
   const mountId = c.req.param("mountId");
   const { subdir } = c.req.valid("query");
 

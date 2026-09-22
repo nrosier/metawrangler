@@ -2,7 +2,7 @@
  * Browse page — select a mount, browse files, select files for bulk edit.
  */
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronRight,
@@ -99,7 +99,7 @@ export function BrowsePage() {
       toast.warning("Select at least one file to edit");
       return;
     }
-    navigate("/bulk-edit", { state: { filePaths: Array.from(selectedFiles) } });
+    void navigate("/bulk-edit", { state: { filePaths: Array.from(selectedFiles) } });
   }
 
   return (
@@ -176,7 +176,7 @@ export function BrowsePage() {
             </div>
             <button
               className="btn-ghost"
-              onClick={() => rescan()}
+              onClick={() => { void rescan(); }}
               disabled={scanning}
               title="Re-scan mount"
             >

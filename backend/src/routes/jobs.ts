@@ -38,11 +38,11 @@ const createJobSchema = z.object({
 });
 
 // POST /api/jobs — create a new bulk edit job
-jobsRouter.post("/", zValidator("json", createJobSchema), async (c) => {
+jobsRouter.post("/", zValidator("json", createJobSchema), (c) => {
   const user = c.get("user");
   const body = c.req.valid("json");
 
-  const jobId = await createJob(user.uid, user.email, body);
+  const jobId = createJob(user.uid, user.email, body);
 
   logger.info(
     { user: user.uid, jobId, files: body.filePaths.length, dryRun: body.dryRun },
@@ -53,7 +53,7 @@ jobsRouter.post("/", zValidator("json", createJobSchema), async (c) => {
 });
 
 // GET /api/jobs — list recent jobs for this user
-jobsRouter.get("/", async (c) => {
+jobsRouter.get("/", (c) => {
   const user = c.get("user");
   const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
 
@@ -69,7 +69,7 @@ jobsRouter.get("/", async (c) => {
 });
 
 // GET /api/jobs/:id — get job + all file results
-jobsRouter.get("/:id", async (c) => {
+jobsRouter.get("/:id", (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
 
@@ -84,7 +84,9 @@ jobsRouter.get("/:id", async (c) => {
     .all()
     .map((f) => ({
       ...f,
-      changesSummary: f.changesSummary ? JSON.parse(f.changesSummary) : null,
+      changesSummary: f.changesSummary
+        ? (JSON.parse(f.changesSummary) as Record<string, unknown>)
+        : null,
       // Never expose snapshotBefore in list — it's large and only needed for undo
       snapshotBefore: undefined,
     }));
@@ -93,7 +95,7 @@ jobsRouter.get("/:id", async (c) => {
 });
 
 // POST /api/jobs/:id/undo — create an undo job for a completed edit job
-jobsRouter.post("/:id/undo", async (c) => {
+jobsRouter.post("/:id/undo", (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
 
@@ -108,7 +110,7 @@ jobsRouter.post("/:id/undo", async (c) => {
   }
 
   try {
-    const undoJobId = await undoJob(id, user.uid, user.email);
+    const undoJobId = undoJob(id, user.uid, user.email);
     logger.info({ user: user.uid, originalJobId: id, undoJobId }, "Undo job created");
     return c.json({ jobId: undoJobId }, 202);
   } catch (err: unknown) {

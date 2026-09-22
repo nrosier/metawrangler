@@ -16,7 +16,7 @@ import {
 import { writeAuditEntry } from "./audit.js";
 import { assertSafePath, PathTraversalError } from "../lib/pathSecurity.js";
 import { logger } from "../lib/logger.js";
-import type { BulkEditRequest, EditOperation, ChangesSummary, TrackSelector } from "../types/index.js";
+import type { BulkEditRequest, EditOperation, ChangesSummary } from "../types/index.js";
 import { EventEmitter } from "events";
 
 // Global event emitter — WebSocket route subscribes to job events
@@ -25,11 +25,11 @@ jobEvents.setMaxListeners(100);
 
 // ── Create job ────────────────────────────────────────────────────────────────
 
-export async function createJob(
+export function createJob(
   userId: string,
   userEmail: string,
   request: BulkEditRequest
-): Promise<string> {
+): string {
   const jobId = uuidv4();
   const now = new Date().toISOString();
 
@@ -195,11 +195,11 @@ async function processJob(
 
 // ── Undo a job ────────────────────────────────────────────────────────────────
 
-export async function undoJob(
+export function undoJob(
   jobId: string,
   userId: string,
   userEmail: string
-): Promise<string> {
+): string {
   const originalFiles = db
     .select()
     .from(jobFiles)
@@ -290,7 +290,7 @@ async function processUndoJob(
       await checkWritable(safePath);
 
       // Parse snapshot and rebuild the mkvpropedit restore args
-      const snapshot = JSON.parse(originalFile.snapshotBefore);
+      const snapshot = JSON.parse(originalFile.snapshotBefore) as unknown;
       const restoreArgs = buildRestoreArgs(safePath, snapshot);
 
       if (restoreArgs.length <= 1) {
@@ -438,7 +438,7 @@ function buildChangesSummary(
 
       summaries.push({
         field: op.field,
-        trackSelector: sel as TrackSelector,
+        trackSelector: sel,
         before,
         after: op.value,
       });

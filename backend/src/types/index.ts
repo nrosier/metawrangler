@@ -18,11 +18,11 @@ export interface MkvTrack {
   flagDefault: boolean;
   flagEnabled: boolean;
   flagForced: boolean;
-  /** Channel count for audio */
-  channels?: number;
-  /** Pixel dimensions for video */
-  pixelWidth?: number;
-  pixelHeight?: number;
+  /** Channel count for audio — present on audio tracks only */
+  channels?: number | undefined;
+  /** Pixel dimensions for video — present on video tracks only */
+  pixelWidth?: number | undefined;
+  pixelHeight?: number | undefined;
 }
 
 export interface MkvFileMetadata {
@@ -54,7 +54,7 @@ export interface TrackSelector {
 
 export interface EditOperation {
   field: EditableField;
-  trackSelector?: TrackSelector; // only needed for track-level fields
+  trackSelector?: TrackSelector | undefined; // only needed for track-level fields
   value: string | boolean;
 }
 

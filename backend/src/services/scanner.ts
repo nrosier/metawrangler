@@ -5,7 +5,7 @@
  */
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { readFile, stat } from "fs/promises";
+import { readFile } from "fs/promises";
 import { readdirSync, statSync } from "fs";
 import path from "path";
 import type { MkvFileMetadata, MkvTrack, TrackType } from "../types/index.js";
@@ -209,7 +209,7 @@ export async function checkToolchain(): Promise<void> {
   for (const tool of ["mkvmerge", "mkvpropedit", "ffprobe"]) {
     try {
       await execFileAsync(tool, ["--version"], { timeout: 5_000 });
-    } catch (err) {
+    } catch {
       throw new Error(
         `Required tool '${tool}' not found or not executable. ` +
         `Ensure mkvtoolnix and ffmpeg are installed in the container.`
