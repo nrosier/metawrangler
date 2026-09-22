@@ -1,64 +1,77 @@
-version: "3.9"
-
-# MetaWrangler – MKV metadata editor
-# Auth: Authentik forward-auth via Caddy reverse proxy
-# Volumes: configure your movie/series mountpoints in the backend service below
+# MetaWrangler — MKV metadata editor
+#
+# Fits into an existing Traefik + Authentik + DockFlare stack.
+# Media volumes are bind-mounted at deploy time — add them under backend.volumes.
+# Rename the Traefik hostname labels to match your domain before deploying.
 
 services:
-  caddy:
-    image: caddy:2-alpine
+  backend:
+    image: ${METAWRANGLER_IMAGE:-niqck/metawrangler-backend:latest}
+    container_name: metawrangler-backend
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    init: true
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/metawrangler.db
+      DATA_DIR: /data
+      PORT: "3001"
+      LOG_LEVEL: info
     volumes:
-      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - frontend
-      - backend
+      - metawrangler-data:/data
+      # Add your media mounts here, e.g.:
+      # - /mnt/nas/movies:/media/movies
+      # - /mnt/nas/series:/media/series
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     networks:
-      - metawrangler
+      - internal
+    labels:
+      # DockFlare — internal service, not exposed directly
+      cloudflare.tunnel.enable: "false"
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ${METAWRANGLER_FRONTEND_IMAGE:-niqck/metawrangler-frontend:latest}
+    container_name: metawrangler-frontend
     restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+      - /var/cache/nginx:size=32m
+      - /var/run:size=8m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     networks:
-      - metawrangler
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      # The user field injected by Authentik forward-auth (header name, lowercase)
-      - AUTHENTIK_HEADER_UID=x-authentik-uid
-      - AUTHENTIK_HEADER_EMAIL=x-authentik-email
-      # Allowed origins for CORS (set to your actual domain in production)
-      - ALLOWED_ORIGIN=https://metawrangler.example.com
-      # Log level: debug | info | warn | error
-      - LOG_LEVEL=info
-    volumes:
-      # Database and config persistence
-      - backend_data:/app/data
-      # Mount your media directories here.
-      # These paths are then registered in the app Settings UI as mounts.
-      # Example:
-      # - /mnt/nas/movies:/media/movies:ro
-      # - /mnt/nas/series:/media/series:ro
-      # Use :ro for read access, or omit for read-write (required for editing metadata)
-    networks:
-      - metawrangler
+      - proxy
+      - internal
+    labels:
+      # --- Traefik -------------------------------------------------------
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.metawrangler.rule: Host(`metawrangler.example.com`)
+      traefik.http.routers.metawrangler.entrypoints: websecure
+      traefik.http.routers.metawrangler.tls.certresolver: letsencrypt
+      traefik.http.services.metawrangler.loadbalancer.server.port: "8080"
+      traefik.http.routers.metawrangler.middlewares: authentik@file
+      # --- DockFlare -----------------------------------------------------
+      cloudflare.tunnel.enable: "true"
+      cloudflare.tunnel.hostname: metawrangler.example.com
+      cloudflare.tunnel.service: http://metawrangler-frontend:8080
 
 volumes:
-  caddy_data:
-  caddy_config:
-  backend_data:
+  metawrangler-data:
 
 networks:
-  metawrangler:
-    driver: bridge
+  proxy:
+    external: true
+  internal:
+    external: true
