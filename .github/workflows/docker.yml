@@ -1,16 +1,21 @@
 name: Docker
 
-# Builds both images (backend + frontend) on every version tag and on pull
-# requests that touch Docker-related files.
+# Builds both images (backend + frontend).
+#
+# Triggers:
+#   push tag v*       — full release: semver tags + sha + latest (if not a pre-release)
+#   pull_request      — build + smoke-test + scan, never pushed
+#   workflow_dispatch — manual: enter a version, choose latest or edge
 #
 # Tagging strategy:
-#   v1.2.3 tag  →  1.2.3, 1.2, 1, latest
-#   v1.2.3-rc.1 →  1.2.3-rc.1  (no rolling tags, never moves latest)
-#   pull request →  built and smoke-tested, never pushed
+#   v1.2.3 tag        →  1.2.3, 1.2, 1, sha-<short>, latest
+#   v1.2.3-rc.1 tag   →  1.2.3-rc.1, sha-<short>          (no rolling tags)
+#   workflow_dispatch →  <input version>, sha-<short>, + latest or edge per input
+#   pull request      →  pr-<n>, sha-<short>               (never pushed)
 #
 # Secrets required (Settings → Secrets → Actions):
-#   DOCKERHUB_NAME  — your Docker Hub username
-#   DOCKERHUB_TOKEN     — a Docker Hub access token (read/write, repo-scoped)
+#   DOCKERHUB_NAME   — your Docker Hub username
+#   DOCKERHUB_TOKEN  — a Docker Hub access token (read/write, repo-scoped)
 
 on:
   push:
@@ -27,6 +32,20 @@ on:
       - docker-compose.yml
       - .github/workflows/docker.yml
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to tag (e.g. 1.2.3 or 1.2.3-rc.1) — do not include the leading v"
+        required: true
+        type: string
+      channel:
+        description: "Rolling tag to move. 'latest' for stable releases, 'edge' for pre-releases. 'none' to skip."
+        required: true
+        type: choice
+        options:
+          - latest
+          - edge
+          - none
+        default: latest
 
 permissions:
   contents: read
@@ -65,24 +84,39 @@ jobs:
           images: ${{ steps.image.outputs.name }}
           flavor: latest=false
           tags: |
+            # Push tag: semver breakdown
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+            # Manual dispatch: use the version input
+            type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            # PR: pr-<n>
             type=ref,event=pr
+            # Always: sha-<short> — guarantees at least one valid tag on every run
+            type=sha,format=short,prefix=sha-
           labels: |
             org.opencontainers.image.title=MetaWrangler Backend
             org.opencontainers.image.description=MKV metadata editor — Hono API + mkvpropedit
 
-      - name: Decide whether this moves latest
-        id: latest
+      - name: Decide rolling tag (latest / edge / none)
+        id: rolling
         env:
           IMAGE: ${{ steps.image.outputs.name }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* && "$GITHUB_REF_NAME" != *-* ]]; then
-            echo "tags=${IMAGE}:latest" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            channel="${{ inputs.channel }}"
+          elif [[ "$GITHUB_REF" == refs/tags/v* && "$GITHUB_REF_NAME" != *-* ]]; then
+            channel="latest"
           else
-            echo "tags=" >> "$GITHUB_OUTPUT"
+            channel="none"
           fi
+
+          if [[ "$channel" == "none" ]]; then
+            echo "tags=" >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=${IMAGE}:${channel}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "channel=${channel}" >> "$GITHUB_OUTPUT"
 
       - name: Build ${{ github.event_name == 'pull_request' && '(amd64, local)' || 'and push' }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
@@ -93,7 +127,7 @@ jobs:
           load: ${{ github.event_name == 'pull_request' }}
           tags: |
             ${{ steps.meta.outputs.tags }}
-            ${{ steps.latest.outputs.tags }}
+            ${{ steps.rolling.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: GITHUB_SHA=${{ github.sha }}
           cache-from: type=gha,scope=backend
@@ -126,7 +160,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          image-ref: "${{ steps.image.outputs.name }}:pr-${{ github.event.number }}"
+          image-ref: "${{ steps.image.outputs.name }}:sha-${{ github.sha }}"
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
@@ -163,21 +197,32 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+            type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=ref,event=pr
+            type=sha,format=short,prefix=sha-
           labels: |
             org.opencontainers.image.title=MetaWrangler Frontend
             org.opencontainers.image.description=MKV metadata editor — React + Nginx
 
-      - name: Decide whether this moves latest
-        id: latest
+      - name: Decide rolling tag (latest / edge / none)
+        id: rolling
         env:
           IMAGE: ${{ steps.image.outputs.name }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* && "$GITHUB_REF_NAME" != *-* ]]; then
-            echo "tags=${IMAGE}:latest" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            channel="${{ inputs.channel }}"
+          elif [[ "$GITHUB_REF" == refs/tags/v* && "$GITHUB_REF_NAME" != *-* ]]; then
+            channel="latest"
           else
-            echo "tags=" >> "$GITHUB_OUTPUT"
+            channel="none"
           fi
+
+          if [[ "$channel" == "none" ]]; then
+            echo "tags=" >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=${IMAGE}:${channel}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "channel=${channel}" >> "$GITHUB_OUTPUT"
 
       - name: Build ${{ github.event_name == 'pull_request' && '(amd64, local)' || 'and push' }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
@@ -188,7 +233,7 @@ jobs:
           load: ${{ github.event_name == 'pull_request' }}
           tags: |
             ${{ steps.meta.outputs.tags }}
-            ${{ steps.latest.outputs.tags }}
+            ${{ steps.rolling.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: GITHUB_SHA=${{ github.sha }}
           cache-from: type=gha,scope=frontend
@@ -202,7 +247,6 @@ jobs:
           docker run -d --name mw-frontend-smoke -p 8080:8080 "$tag"
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8080/ > /dev/null 2>&1; then
-              # Verify security headers set by Nginx
               curl -fsS -I http://127.0.0.1:8080/ | grep -i 'x-content-type-options' \
                 || { echo 'Missing X-Content-Type-Options header.' >&2; exit 1; }
               curl -fsS -I http://127.0.0.1:8080/ | grep -i 'x-frame-options' \
@@ -221,7 +265,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          image-ref: "${{ steps.image.outputs.name }}:pr-${{ github.event.number }}"
+          image-ref: "${{ steps.image.outputs.name }}:sha-${{ github.sha }}"
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
