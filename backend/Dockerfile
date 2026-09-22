@@ -13,37 +13,28 @@ RUN npm ci
 COPY src ./src
 RUN npx tsc --outDir dist
 
-# ── Stage 3: Runtime — UBI9 minimal + mkvtoolnix + ffmpeg ─────────────────────
-# IBM security policy: images from registry.redhat.io, non-root user.
-FROM registry.redhat.io/ubi9/nodejs-22-minimal:latest
+# ── Stage 3: Runtime — Alpine + mkvtoolnix + ffmpeg ───────────────────────────
+FROM node:22-alpine
 
 ARG GITHUB_SHA=unknown
 LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
 
-USER root
+# Install mkvtoolnix (mkvmerge + mkvpropedit) and ffmpeg from Alpine repos
+RUN apk add --no-cache mkvtoolnix ffmpeg
 
-# Install mkvtoolnix (mkvmerge + mkvpropedit) and ffmpeg.
-# These are available in the EPEL/RPM Fusion repos for UBI9.
-# In an air-gapped environment, replace with pre-approved RPMs.
-RUN microdnf install -y --nodocs \
-      mkvtoolnix \
-      ffmpeg \
-    && microdnf clean all \
-    && rm -rf /var/cache/dnf
-
-# Create data directory owned by uid 1001 (default non-root user in ubi-minimal)
-RUN mkdir -p /app/data && chown -R 1001:0 /app/data
+# Create data directory owned by the 'node' user (uid 1000 in node:alpine)
+RUN mkdir -p /app/data && chown -R node:node /app/data
 
 WORKDIR /app
 
 # Copy compiled JS from build stage
-COPY --from=build --chown=1001:0 /app/dist ./dist
+COPY --from=build --chown=node:node /app/dist ./dist
 
 # Copy production node_modules from deps stage
-COPY --from=deps --chown=1001:0 /app/node_modules ./node_modules
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 
-# Drop to non-root
-USER 1001
+# Drop to non-root (node user, uid 1000)
+USER node
 
 ENV NODE_ENV=production
 ENV DATA_DIR=/app/data

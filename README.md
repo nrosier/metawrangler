@@ -27,7 +27,7 @@ Designed to drop into an existing **Traefik + Authentik + DockFlare** homelab st
 | Auth | Authentik forward-auth via Traefik middleware |
 | MKV read | `mkvmerge -J` + `ffprobe` (fallback) |
 | MKV write | `mkvpropedit` (bundled in backend container) |
-| Container base | `registry.redhat.io/ubi9/nodejs-22-minimal` |
+| Container base | `node:22-alpine` (backend) · `nginx:1.27-alpine` (frontend) |
 
 ## Architecture
 
@@ -99,7 +99,7 @@ Open the app → **Settings** → **Add mount** — register the container paths
 - **Undo snapshots**: full `mkvmerge -J` JSON stored before every write
 - **Append-only audit log**: no update/delete endpoints on `audit_log`
 - **Structured logging** via Pino — sensitive fields auto-redacted
-- **UBI9 base images** from `registry.redhat.io`
+- **Alpine base images** (`node:22-alpine`, `nginx:1.27-alpine`) — non-root, minimal attack surface
 
 ## Development
 
