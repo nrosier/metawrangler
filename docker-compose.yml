@@ -1,0 +1,64 @@
+version: "3.9"
+
+# MetaWrangler – MKV metadata editor
+# Auth: Authentik forward-auth via Caddy reverse proxy
+# Volumes: configure your movie/series mountpoints in the backend service below
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - metawrangler
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - metawrangler
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # The user field injected by Authentik forward-auth (header name, lowercase)
+      - AUTHENTIK_HEADER_UID=x-authentik-uid
+      - AUTHENTIK_HEADER_EMAIL=x-authentik-email
+      # Allowed origins for CORS (set to your actual domain in production)
+      - ALLOWED_ORIGIN=https://metawrangler.example.com
+      # Log level: debug | info | warn | error
+      - LOG_LEVEL=info
+    volumes:
+      # Database and config persistence
+      - backend_data:/app/data
+      # Mount your media directories here.
+      # These paths are then registered in the app Settings UI as mounts.
+      # Example:
+      # - /mnt/nas/movies:/media/movies:ro
+      # - /mnt/nas/series:/media/series:ro
+      # Use :ro for read access, or omit for read-write (required for editing metadata)
+    networks:
+      - metawrangler
+
+volumes:
+  caddy_data:
+  caddy_config:
+  backend_data:
+
+networks:
+  metawrangler:
+    driver: bridge
