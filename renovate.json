@@ -1,0 +1,48 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits"
+  ],
+  "timezone": "Europe/Brussels",
+  "schedule": ["* 2-6 * * 1"],
+  "labels": ["dependencies"],
+  "dependencyDashboardLabels": ["type:chore", "dependencies"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "bump",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 2-6 * * 1"],
+    "automerge": true,
+    "platformAutomerge": false,
+    "description": "A lockfile refresh has no reviewable content: `package.json` does not change, only transitive versions inside the ranges their parents already allow. CI passing is the whole review, so it merges itself. `platformAutomerge` is off on purpose — GitHub's own auto-merge waits for required status checks, and this repo has no branch protection to require any, so it would merge the moment the PR opened. With it off, Renovate waits for the checks itself before merging."
+  },
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "schedule": ["at any time"]
+  },
+  "packageRules": [
+    {
+      "description": "Versions, never digests. A `uses: actions/checkout@abc123...` diff is unreviewable — you cannot tell a patch bump from a hijacked tag by reading the hash. Tags are what the upgrade is judged on here.",
+      "matchDatasources": ["github-tags", "github-releases", "docker"],
+      "pinDigests": false
+    },
+    {
+      "description": "Dev tooling: one PR for all non-major updates.",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dev dependencies"
+    },
+    {
+      "description": "Native module — a rebuild failure should not be hidden inside a group.",
+      "matchPackageNames": ["better-sqlite3"],
+      "groupName": null
+    },
+    {
+      "description": "Majors are reviewed one at a time.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}
