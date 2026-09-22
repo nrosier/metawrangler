@@ -8,7 +8,9 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        project: true,
+        // tsconfig.test.json extends tsconfig.json but includes __tests__ dirs,
+        // which tsconfig.json excludes to keep the compile output clean.
+        project: ["./tsconfig.test.json"],
         tsconfigRootDir: import.meta.dirname,
       },
     },

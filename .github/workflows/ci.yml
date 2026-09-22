@@ -17,14 +17,14 @@ permissions:
 jobs:
   verify-backend:
     name: Backend — typecheck, lint, audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -38,24 +38,24 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Checks the production dependency tree on every push/PR independently
-      # of any image scanning — catches newly disclosed CVEs before they ship.
       - name: Tests
         run: npm test
 
+      # Checks the production dependency tree on every push/PR independently
+      # of any image scanning — catches newly disclosed CVEs before they ship.
       - name: Dependency audit
         run: npm audit --omit=dev --audit-level=high
 
   verify-frontend:
     name: Frontend — typecheck, lint, build, audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -78,9 +78,9 @@ jobs:
 
   secrets:
     name: Secret scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # gitleaks scans history — needs the full tree.
           fetch-depth: 0
