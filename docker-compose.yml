@@ -1,8 +1,15 @@
-# MetaWrangler — MKV metadata editor
+# MetaWrangler alongside an existing Traefik + Authentik + DockFlare stack.
 #
-# Fits into an existing Traefik + Authentik + DockFlare stack.
-# Media volumes are bind-mounted at deploy time — add them under backend.volumes.
-# Rename the Traefik hostname labels to match your domain before deploying.
+# The frontend is the only publicly reachable service — through the
+# Cloudflare tunnel and Traefik, behind Authentik forward-auth.
+# The backend stays on the internal network; the frontend Nginx proxies
+# /api/* and /ws/* to it.
+#
+# Before deploying:
+#   1. Set image names in .env  (cp .env.example .env)
+#   2. Replace metawrangler.example.com with your actual domain
+#   3. Add your media bind-mounts under backend.volumes
+#   4. Ensure the proxy and internal networks exist in your stack
 
 services:
   backend:
@@ -12,10 +19,8 @@ services:
     init: true
     env_file: .env
     environment:
-      DATABASE_PATH: /data/metawrangler.db
       DATA_DIR: /data
       PORT: "3001"
-      LOG_LEVEL: info
     volumes:
       - metawrangler-data:/data
       # Add your media mounts here, e.g.:
@@ -30,9 +35,6 @@ services:
       - ALL
     networks:
       - internal
-    labels:
-      # DockFlare — internal service, not exposed directly
-      cloudflare.tunnel.enable: "false"
 
   frontend:
     image: ${METAWRANGLER_FRONTEND_IMAGE:-metawrangler-frontend:latest}
