@@ -15,11 +15,7 @@ LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# nginx:alpine uses the 'nginx' user (uid 101); ensure it owns the html dir
-# /var/cache/nginx and /var/run are writable by nginx by default in this image
-RUN chown -R nginx:nginx /usr/share/nginx/html \
-    && mkdir -p /tmp/nginx_client_body /tmp/nginx_proxy \
-    && chown -R nginx:nginx /tmp/nginx_client_body /tmp/nginx_proxy
+RUN chown -R nginx:nginx /usr/share/nginx/html
 
 USER nginx
 
