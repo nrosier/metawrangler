@@ -23,7 +23,7 @@ LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
 RUN apk add --no-cache mkvtoolnix ffmpeg
 
 # Create data directory owned by the 'node' user (uid 1000 in node:alpine)
-RUN mkdir -p /app/data && chown -R node:node /app/data
+RUN mkdir -p /app/data /data && chown -R node:node /app/data /data
 
 WORKDIR /app
 
