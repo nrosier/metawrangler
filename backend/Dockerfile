@@ -14,10 +14,12 @@ LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
 # Install mkvtoolnix (mkvmerge + mkvpropedit) and ffmpeg from Alpine repos.
 # Single RUN layer: install then immediately assert all three binaries exist
 # so a poisoned Docker layer cache can never produce a silently broken image.
+# Note: ffprobe uses -version (single dash); mkvtoolnix tools use --version.
 RUN apk add --no-cache mkvtoolnix ffmpeg \
     && which mkvmerge mkvpropedit ffprobe \
     && mkvmerge --version \
-    && ffprobe -version 2>&1 | head -1
+    && ffprobe -version 2>&1 | head -1 \
+    && mkvpropedit --version
 
 # Create data directory owned by the 'bun' user (uid 1000 in oven/bun:alpine)
 RUN mkdir -p /app/data && chown -R bun:bun /app/data

@@ -202,13 +202,22 @@ async function scanFileWithFfprobe(filePath: string): Promise<MkvFileMetadata> {
 }
 
 /**
- * Check that both mkvmerge and mkvpropedit are present and executable.
+ * Check that mkvmerge, mkvpropedit, and ffprobe are present and executable.
  * Called at startup.
+ *
+ * Flag note: mkvtoolnix tools use --version; ffprobe uses -version (single dash).
+ * Both exit 0 on success. Using the wrong flag causes a non-zero exit which
+ * child_process.execFile treats as an error — identical to "not found".
  */
 export async function checkToolchain(): Promise<void> {
-  for (const tool of ["mkvmerge", "mkvpropedit", "ffprobe"]) {
+  const tools: Array<[string, string[]]> = [
+    ["mkvmerge",    ["--version"]],
+    ["mkvpropedit", ["--version"]],
+    ["ffprobe",     ["-version"]],   // ffprobe uses single-dash -version
+  ];
+  for (const [tool, args] of tools) {
     try {
-      await execFileAsync(tool, ["--version"], { timeout: 5_000 });
+      await execFileAsync(tool, args, { timeout: 5_000 });
     } catch {
       throw new Error(
         `Required tool '${tool}' not found or not executable. ` +
