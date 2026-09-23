@@ -85,10 +85,13 @@ app.onError((err, c) => {
 
 // ── Start server ──────────────────────────────────────────────────────────────
 
+// Bind to 0.0.0.0 so other containers on the Docker internal network can reach
+// this service. External exposure is prevented by the compose network config —
+// the backend is on the internal network only, never on the proxy network.
 Bun.serve({
   fetch: app.fetch,
   port: PORT,
-  hostname: "127.0.0.1",
+  hostname: "0.0.0.0",
   websocket: {
     // Bun requires a websocket handler at the top-level server for upgradeWebSocket to work.
     // The actual handlers are registered per-route in ws.ts via hono/bun upgradeWebSocket.
