@@ -1,8 +1,7 @@
 import { clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: Parameters<typeof clsx>): string {
-  return twMerge(clsx(...inputs));
+  return clsx(...inputs);
 }
 
 export function formatPath(filePath: string): string {

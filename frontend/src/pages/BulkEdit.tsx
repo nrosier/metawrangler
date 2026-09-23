@@ -6,21 +6,10 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  AlertTriangle,
-  ChevronLeft,
-  FlaskConical,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { IconAlertTriangle, IconChevronLeft, IconFlask, IconPencil, IconPlus, IconTrash } from "@/icons";
 import { api } from "@/lib/api";
 import { formatPath } from "@/lib/utils";
-import type {
-  EditOperation,
-  EditableField,
-  TrackType,
-} from "@/types";
+import type { EditOperation, EditableField, TrackType } from "@/types";
 
 type LocationState = { filePaths: string[] } | null;
 
@@ -34,11 +23,7 @@ const FIELD_LABELS: Record<EditableField, string> = {
   trackFlagForced: "Forced Flag",
 };
 
-const FLAG_FIELDS: EditableField[] = [
-  "trackFlagDefault",
-  "trackFlagEnabled",
-  "trackFlagForced",
-];
+const FLAG_FIELDS: EditableField[] = ["trackFlagDefault", "trackFlagEnabled", "trackFlagForced"];
 
 const TRACK_FIELDS: EditableField[] = [
   "trackLanguage",
@@ -105,7 +90,6 @@ export function BulkEditPage() {
   const [ops, setOps] = useState<OperationForm[]>([newOp()]);
   const [dryRun, setDryRun] = useState(false);
 
-  // Pre-load metadata for all selected files (for conflict preview)
   const { data: metaResults } = useQuery({
     queryKey: ["meta-bulk", filePaths],
     queryFn: () => api.scan.getMetadata(filePaths),
@@ -125,10 +109,10 @@ export function BulkEditPage() {
 
   if (filePaths.length === 0) {
     return (
-      <div className="p-8 text-center">
-        <p className="text-muted">No files selected.</p>
-        <button className="btn-ghost mt-3" onClick={() => { void navigate("/"); }}>
-          <ChevronLeft size={14} /> Back to Browse
+      <div className="stack" style={{ textAlign: "center" }}>
+        <p className="muted">No files selected.</p>
+        <button className="button button--quiet" onClick={() => { void navigate("/"); }}>
+          <IconChevronLeft /> Back to Browse
         </button>
       </div>
     );
@@ -141,12 +125,10 @@ export function BulkEditPage() {
       if (op.field === "title" || op.trackIndex === "*") continue;
       for (const result of metaResults) {
         if (!result.metadata) continue;
-        const tracks = result.metadata.tracks.filter(
-          (t) => op.trackType === "*" || t.type === op.trackType
-        );
+        const tracks = result.metadata.tracks.filter((t) => op.trackType === "*" || t.type === op.trackType);
         if (typeof op.trackIndex === "number" && op.trackIndex >= tracks.length) {
           conflicts.push(
-            `"${formatPath(result.filePath)}" has only ${tracks.length} ${op.trackType} track(s) — operation on index ${op.trackIndex} will be skipped.`
+            `"${formatPath(result.filePath)}" has only ${tracks.length} ${op.trackType} track(s) — operation on index ${op.trackIndex} will be skipped.`,
           );
         }
       }
@@ -162,9 +144,7 @@ export function BulkEditPage() {
   }
 
   function updateOp(id: number, patch: Partial<OperationForm>) {
-    setOps((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, ...patch } : o))
-    );
+    setOps((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
   }
 
   function handleSubmit() {
@@ -185,68 +165,57 @@ export function BulkEditPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 max-w-3xl">
-      <div className="flex items-center gap-2">
-        <button className="btn-ghost" onClick={() => { void navigate("/"); }}>
-          <ChevronLeft size={14} />
+    <div className="stack" style={{ maxWidth: "48rem" }}>
+      <div className="page__heading">
+        <button className="button button--quiet button--icon" onClick={() => { void navigate("/"); }} aria-label="Back to Browse">
+          <IconChevronLeft />
         </button>
-        <h1 className="text-lg font-semibold">Bulk Edit</h1>
-        <span className="text-muted text-sm">
+        <h1 className="page__title">Bulk Edit</h1>
+        <span className="muted">
           — {filePaths.length} file{filePaths.length !== 1 ? "s" : ""}
         </span>
       </div>
 
-      {/* Selected files summary */}
-      <section className="border border-border rounded bg-surface px-4 py-3">
-        <p className="text-xs font-medium text-muted uppercase tracking-wide mb-2">
-          Selected files
-        </p>
-        <ul className="space-y-0.5 max-h-36 overflow-y-auto">
+      <section className="card card--sunken">
+        <p className="section-label">Selected files</p>
+        <ul className="file-list">
           {filePaths.map((f) => (
-            <li key={f} className="font-mono text-xs text-gray-700 truncate">
+            <li key={f} className="file-list__item">
               {f}
             </li>
           ))}
         </ul>
       </section>
 
-      {/* Conflict warnings */}
       {conflicts.length > 0 && (
-        <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3">
-          <div className="flex items-center gap-1.5 text-amber-700 font-medium text-sm mb-1">
-            <AlertTriangle size={14} />
+        <div className="notice notice--warn">
+          <p className="notice__lead">
+            <IconAlertTriangle />
             Track index conflicts detected
-          </div>
-          <ul className="space-y-0.5">
+          </p>
+          <ul className="notice__list">
             {conflicts.map((c, i) => (
-              <li key={i} className="text-xs text-amber-700">
-                {c}
-              </li>
+              <li key={i}>{c}</li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* Operations */}
-      <section>
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-medium">Operations</p>
-          <button className="btn-ghost text-xs" onClick={addOp}>
-            <Plus size={13} /> Add operation
+      <section className="stack">
+        <div className="toolbar" style={{ justifyContent: "space-between" }}>
+          <p className="card__title" style={{ marginBottom: 0 }}>Operations</p>
+          <button className="button button--quiet button--sm" onClick={addOp}>
+            <IconPlus /> Add operation
           </button>
         </div>
-        <div className="space-y-3">
+        <div className="stack">
           {ops.map((op) => (
-            <div
-              key={op.id}
-              className="border border-border rounded p-3 bg-white grid gap-3"
-            >
-              {/* Field selector */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-muted mb-1">Field</label>
+            <div key={op.id} className="card stack">
+              <div className="form-grid">
+                <div className="field">
+                  <label className="field__label">Field</label>
                   <select
-                    className="select"
+                    className="field__input"
                     value={op.field}
                     onChange={(e) => {
                       const field = e.target.value as EditableField;
@@ -266,57 +235,39 @@ export function BulkEditPage() {
                   </select>
                 </div>
 
-                {/* Value input */}
-                <div>
-                  <label className="block text-xs text-muted mb-1">Value</label>
+                <div className="field">
+                  <label className="field__label">Value</label>
                   {FLAG_FIELDS.includes(op.field) ? (
                     <select
-                      className="select"
+                      className="field__input"
                       value={op.boolValue ? "true" : "false"}
-                      onChange={(e) =>
-                        updateOp(op.id, {
-                          boolValue: e.target.value === "true",
-                        })
-                      }
+                      onChange={(e) => updateOp(op.id, { boolValue: e.target.value === "true" })}
                     >
                       <option value="true">Yes / 1 (enabled)</option>
                       <option value="false">No / 0 (disabled)</option>
                     </select>
                   ) : (
                     <input
-                      className="input"
+                      className="field__input"
                       type="text"
                       placeholder={
-                        op.field === "trackLanguage"
-                          ? "e.g. eng"
-                          : op.field === "trackLanguageIETF"
-                          ? "e.g. en-US"
-                          : "Enter value…"
+                        op.field === "trackLanguage" ? "e.g. eng" : op.field === "trackLanguageIETF" ? "e.g. en-US" : "Enter value…"
                       }
                       value={op.value}
-                      onChange={(e) =>
-                        updateOp(op.id, { value: e.target.value })
-                      }
+                      onChange={(e) => updateOp(op.id, { value: e.target.value })}
                     />
                   )}
                 </div>
               </div>
 
-              {/* Track selector — only for track-level fields */}
               {TRACK_FIELDS.includes(op.field) && op.field !== "title" && (
-                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
-                  <div>
-                    <label className="block text-xs text-muted mb-1">
-                      Track type
-                    </label>
+                <div className="form-grid form-grid--divider">
+                  <div className="field">
+                    <label className="field__label">Track type</label>
                     <select
-                      className="select"
+                      className="field__input"
                       value={op.trackType}
-                      onChange={(e) =>
-                        updateOp(op.id, {
-                          trackType: e.target.value as TrackType | "*",
-                        })
-                      }
+                      onChange={(e) => updateOp(op.id, { trackType: e.target.value as TrackType | "*" })}
                     >
                       {TRACK_TYPES.map((t) => (
                         <option key={t.value} value={t.value}>
@@ -325,19 +276,14 @@ export function BulkEditPage() {
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-xs text-muted mb-1">
-                      Track index
-                    </label>
+                  <div className="field">
+                    <label className="field__label">Track index</label>
                     <select
-                      className="select"
+                      className="field__input"
                       value={op.trackIndex === "*" ? "*" : String(op.trackIndex)}
                       onChange={(e) =>
                         updateOp(op.id, {
-                          trackIndex:
-                            e.target.value === "*"
-                              ? "*"
-                              : Number(e.target.value),
+                          trackIndex: e.target.value === "*" ? "*" : Number(e.target.value),
                         })
                       }
                     >
@@ -353,12 +299,9 @@ export function BulkEditPage() {
               )}
 
               {ops.length > 1 && (
-                <div className="flex justify-end">
-                  <button
-                    className="btn-ghost text-xs text-red-500 hover:text-red-700 border-red-200 hover:border-red-300"
-                    onClick={() => removeOp(op.id)}
-                  >
-                    <Trash2 size={12} /> Remove
+                <div className="toolbar toolbar--end">
+                  <button className="button button--danger button--sm" onClick={() => removeOp(op.id)}>
+                    <IconTrash /> Remove
                   </button>
                 </div>
               )}
@@ -367,32 +310,30 @@ export function BulkEditPage() {
         </div>
       </section>
 
-      {/* Dry-run toggle + submit */}
-      <div className="flex items-center justify-between pt-2 border-t border-border">
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+      <div className="toolbar form-grid--divider" style={{ justifyContent: "space-between" }}>
+        <label className="field--inline" style={{ cursor: "pointer" }}>
           <input
             type="checkbox"
-            className="rounded border-border"
+            className="field__checkbox"
             checked={dryRun}
             onChange={(e) => setDryRun(e.target.checked)}
           />
-          <FlaskConical size={14} className="text-muted" />
+          <IconFlask className="table__cell--muted" />
           Dry run (preview changes without writing)
         </label>
 
         <button
-          className={dryRun ? "btn-ghost" : "btn-primary"}
+          className={dryRun ? "button button--quiet" : "button"}
           onClick={handleSubmit}
           disabled={createJob.isPending}
         >
           {dryRun ? (
             <>
-              <FlaskConical size={14} /> Preview changes
+              <IconFlask /> Preview changes
             </>
           ) : (
             <>
-              <Pencil size={14} /> Apply to {filePaths.length} file
-              {filePaths.length !== 1 ? "s" : ""}
+              <IconPencil /> Apply to {filePaths.length} file{filePaths.length !== 1 ? "s" : ""}
             </>
           )}
         </button>

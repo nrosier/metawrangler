@@ -14,20 +14,16 @@ const labels: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-const classes: Record<string, string> = {
-  pending: "badge-muted",
-  running: "badge-running",
-  success: "badge-success",
-  done: "badge-success",
-  failed: "badge-danger",
-  skipped: "badge-warning",
-  cancelled: "badge-muted",
+const tones: Record<string, string> = {
+  pending: "badge",
+  running: "badge badge--info",
+  success: "badge badge--ok",
+  done: "badge badge--ok",
+  failed: "badge badge--alert",
+  skipped: "badge badge--warn",
+  cancelled: "badge",
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  return (
-    <span className={classes[status] ?? "badge-muted"}>
-      {labels[status] ?? status}
-    </span>
-  );
+  return <span className={tones[status] ?? "badge"}>{labels[status] ?? status}</span>;
 }
