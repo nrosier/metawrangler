@@ -12,10 +12,14 @@ ARG GITHUB_SHA=unknown
 LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
 
 # Install mkvtoolnix (mkvmerge + mkvpropedit) and ffmpeg from Alpine repos.
+# apk upgrade first: picks up patched packages (e.g. openssl) not yet baked
+# into the base image tag's cached layer.
 # Single RUN layer: install then immediately assert all three binaries exist
 # so a poisoned Docker layer cache can never produce a silently broken image.
 # Note: ffprobe uses -version (single dash); mkvtoolnix tools use --version.
-RUN apk add --no-cache mkvtoolnix ffmpeg \
+RUN apk update \
+    && apk upgrade --no-cache \
+    && apk add --no-cache mkvtoolnix ffmpeg \
     && which mkvmerge mkvpropedit ffprobe \
     && mkvmerge --version \
     && ffprobe -version 2>&1 | head -1 \
