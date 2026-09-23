@@ -7,7 +7,7 @@ import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { mounts } from "../db/schema.js";
-import { walkMkvFiles, scanFile } from "../services/scanner.js";
+import { walkMkvFiles, listDirectory, scanFile } from "../services/scanner.js";
 import { assertWithinBase } from "../lib/pathSecurity.js";
 import { writeAuditEntry } from "../services/audit.js";
 import { logger } from "../lib/logger.js";
@@ -33,6 +33,29 @@ scanRouter.get("/:mountId", (c) => {
 
   logger.info({ user: user.uid, mountId, fileCount: files.length }, "Mount scanned");
   return c.json({ mountId, path: mount.path, files });
+});
+
+// GET /api/scan/:mountId/list — list the immediate directories and MKV files
+// of a directory (defaults to the mount root). This is the non-recursive,
+// directory-by-directory browsing view.
+const listSchema = z.object({ path: z.string().min(1).optional() });
+
+scanRouter.get("/:mountId/list", zValidator("query", listSchema), (c) => {
+  const mountId = c.req.param("mountId");
+  const { path: reqPath } = c.req.valid("query");
+
+  const mount = db.select().from(mounts).where(eq(mounts.id, mountId)).get();
+  if (!mount) return c.json({ error: "Mount not found" }, 404);
+
+  let safePath: string;
+  try {
+    safePath = assertWithinBase(reqPath ?? mount.path, mount.path);
+  } catch {
+    return c.json({ error: "Invalid path" }, 403);
+  }
+
+  const { directories, files } = listDirectory(safePath);
+  return c.json({ mountId, path: safePath, directories, files });
 });
 
 // GET /api/scan/:mountId/subdir — list files under a specific subdir

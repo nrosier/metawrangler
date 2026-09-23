@@ -66,6 +66,47 @@ export function walkMkvFiles(dirPath: string): string[] {
   return results;
 }
 
+export interface DirectoryListing {
+  directories: string[];
+  files: string[];
+}
+
+/**
+ * List the immediate children of a directory: subdirectories and .mkv files,
+ * without recursing. Used for directory-by-directory browsing.
+ */
+export function listDirectory(dirPath: string): DirectoryListing {
+  const directories: string[] = [];
+  const files: string[] = [];
+
+  let entries: string[];
+  try {
+    entries = readdirSync(dirPath);
+  } catch (err) {
+    logger.warn({ dirPath, err }, "Could not read directory, skipping");
+    return { directories, files };
+  }
+
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry);
+    let s;
+    try {
+      s = statSync(fullPath);
+    } catch {
+      continue;
+    }
+    if (s.isDirectory()) {
+      directories.push(fullPath);
+    } else if (s.isFile() && entry.toLowerCase().endsWith(".mkv")) {
+      files.push(fullPath);
+    }
+  }
+
+  directories.sort();
+  files.sort();
+  return { directories, files };
+}
+
 // ── mkvmerge -J output types (partial) ───────────────────────────────────────
 
 interface MkvmergeTrack {

@@ -1,84 +1,119 @@
 /**
- * BulkEdit page — configure operations, preview, and submit edit job.
- * Receives filePaths via router location state.
+ * BulkEdit page — a fixed set of modifiable fields (container title, plus
+ * language/name/flags per track), pre-filled from the selected files' current
+ * metadata. No ad hoc operation builder: every field that can be changed is
+ * always shown, and only fields the user actually touches become operations.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconAlertTriangle, IconChevronLeft, IconFlask, IconPencil, IconPlus, IconTrash } from "@/icons";
+import { IconAlertTriangle, IconChevronLeft, IconFlask, IconPencil } from "@/icons";
 import { api } from "@/lib/api";
-import { formatPath } from "@/lib/utils";
-import type { EditOperation, EditableField, TrackType } from "@/types";
+import type { EditOperation, EditableField, MkvTrack, TrackType } from "@/types";
 
 type LocationState = { filePaths: string[] } | null;
 
-const FIELD_LABELS: Record<EditableField, string> = {
-  title: "File Title",
-  trackLanguage: "Track Language (ISO 639-2)",
-  trackLanguageIETF: "Track Language (BCP 47 / IETF)",
-  trackName: "Track Name",
-  trackFlagDefault: "Default Flag",
-  trackFlagEnabled: "Enabled Flag",
-  trackFlagForced: "Forced Flag",
-};
+const ISO_639_2 = /^[a-z]{3}$/;
 
-const FLAG_FIELDS: EditableField[] = ["trackFlagDefault", "trackFlagEnabled", "trackFlagForced"];
-
-const TRACK_FIELDS: EditableField[] = [
-  "trackLanguage",
-  "trackLanguageIETF",
-  "trackName",
-  "trackFlagDefault",
-  "trackFlagEnabled",
-  "trackFlagForced",
-];
-
-const TRACK_TYPES: Array<{ value: TrackType | "*"; label: string }> = [
-  { value: "*", label: "All tracks" },
-  { value: "audio", label: "Audio" },
-  { value: "subtitles", label: "Subtitles" },
-  { value: "video", label: "Video" },
-];
-
-interface OperationForm {
-  id: number;
-  field: EditableField;
-  trackType: TrackType | "*";
-  trackIndex: number | "*";
-  value: string;
-  boolValue: boolean;
+interface Aggregate<T> {
+  same: boolean;
+  value: T;
 }
 
-let nextId = 1;
-
-function newOp(): OperationForm {
-  return {
-    id: nextId++,
-    field: "trackLanguage",
-    trackType: "audio",
-    trackIndex: 0,
-    value: "",
-    boolValue: false,
-  };
+function aggregate<T>(values: T[]): Aggregate<T> {
+  const first = values[0]!;
+  return { same: values.every((v) => v === first), value: first };
 }
 
-function toEditOperation(form: OperationForm): EditOperation {
-  const isFlag = FLAG_FIELDS.includes(form.field);
-  const value: string | boolean = isFlag ? form.boolValue : form.value;
+interface TrackSlot {
+  index: number;
+  filesPresent: number;
+  language: Aggregate<string>;
+  name: Aggregate<string>;
+  flagDefault: Aggregate<boolean>;
+  flagEnabled: Aggregate<boolean>;
+  flagForced: Aggregate<boolean>;
+}
 
-  if (form.field === "title") {
-    return { field: form.field, value };
+function buildSlots(filesMeta: Array<{ tracks: MkvTrack[] }>, type: TrackType): TrackSlot[] {
+  const maxCount = filesMeta.reduce((max, m) => Math.max(max, m.tracks.filter((t) => t.type === type).length), 0);
+  const slots: TrackSlot[] = [];
+  for (let i = 0; i < maxCount; i++) {
+    const tracksAtSlot = filesMeta
+      .map((m) => m.tracks.filter((t) => t.type === type)[i])
+      .filter((t): t is MkvTrack => !!t);
+    slots.push({
+      index: i,
+      filesPresent: tracksAtSlot.length,
+      language: aggregate(tracksAtSlot.map((t) => t.language ?? "")),
+      name: aggregate(tracksAtSlot.map((t) => t.name ?? "")),
+      flagDefault: aggregate(tracksAtSlot.map((t) => t.flagDefault)),
+      flagEnabled: aggregate(tracksAtSlot.map((t) => t.flagEnabled)),
+      flagForced: aggregate(tracksAtSlot.map((t) => t.flagForced)),
+    });
   }
+  return slots;
+}
 
-  return {
-    field: form.field,
-    trackSelector: {
-      trackType: form.trackType,
-      trackIndex: form.trackIndex,
-    },
-    value,
-  };
+const trackKey = (type: TrackType, index: number, field: EditableField): string => `${type}:${index}:${field}`;
+
+function TextField(props: {
+  label: string;
+  agg: Aggregate<string>;
+  edited: string | undefined;
+  onChange: (value: string) => void;
+  maxLength?: number;
+  hint?: string;
+  lowercase?: boolean;
+}): ReactNode {
+  const displayValue = props.edited ?? (props.agg.same ? props.agg.value : "");
+  return (
+    <div className="field">
+      <label className="field__label">{props.label}</label>
+      <input
+        className="field__input"
+        type="text"
+        value={displayValue}
+        placeholder={props.agg.same ? undefined : "Multiple values"}
+        maxLength={props.maxLength}
+        onChange={(e) => props.onChange(props.lowercase ? e.target.value.toLowerCase() : e.target.value)}
+      />
+      {props.hint && (
+        <span className="muted" style={{ fontSize: "var(--type-xs)" }}>
+          {props.hint}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TriCheckbox(props: {
+  label: string;
+  agg: Aggregate<boolean>;
+  edited: boolean | undefined;
+  onChange: (value: boolean) => void;
+}): ReactNode {
+  const ref = useRef<HTMLInputElement>(null);
+  const indeterminate = props.edited === undefined && !props.agg.same;
+  const checked = props.edited ?? (props.agg.same ? props.agg.value : false);
+
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+
+  return (
+    <label className="field field--inline">
+      <input
+        ref={ref}
+        type="checkbox"
+        className="field__checkbox"
+        checked={checked}
+        onChange={(e) => props.onChange(e.target.checked)}
+      />
+      <span>{props.label}</span>
+    </label>
+  );
 }
 
 export function BulkEditPage() {
@@ -87,10 +122,10 @@ export function BulkEditPage() {
   const state = location.state as LocationState;
   const filePaths = state?.filePaths ?? [];
 
-  const [ops, setOps] = useState<OperationForm[]>([newOp()]);
+  const [edits, setEdits] = useState<Record<string, string | boolean>>({});
   const [dryRun, setDryRun] = useState(false);
 
-  const { data: metaResults } = useQuery({
+  const { data: metaResults, isLoading: metaLoading } = useQuery({
     queryKey: ["meta-bulk", filePaths],
     queryFn: () => api.scan.getMetadata(filePaths),
     enabled: filePaths.length > 0 && filePaths.length <= 100,
@@ -118,50 +153,72 @@ export function BulkEditPage() {
     );
   }
 
-  // Conflict detection: find ops targeting track indices that don't exist in all files
-  const conflicts: string[] = [];
-  if (metaResults) {
-    for (const op of ops) {
-      if (op.field === "title" || op.trackIndex === "*") continue;
-      for (const result of metaResults) {
-        if (!result.metadata) continue;
-        const tracks = result.metadata.tracks.filter((t) => op.trackType === "*" || t.type === op.trackType);
-        if (typeof op.trackIndex === "number" && op.trackIndex >= tracks.length) {
-          conflicts.push(
-            `"${formatPath(result.filePath)}" has only ${tracks.length} ${op.trackType} track(s) — operation on index ${op.trackIndex} will be skipped.`,
-          );
-        }
-      }
-    }
+  function setText(key: string, value: string, agg: Aggregate<string>) {
+    setEdits((prev) => {
+      const next = { ...prev };
+      if (value === "" || (agg.same && value === agg.value)) delete next[key];
+      else next[key] = value;
+      return next;
+    });
   }
 
-  function addOp() {
-    setOps((prev) => [...prev, newOp()]);
-  }
-
-  function removeOp(id: number) {
-    setOps((prev) => prev.filter((o) => o.id !== id));
-  }
-
-  function updateOp(id: number, patch: Partial<OperationForm>) {
-    setOps((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  function setBool(key: string, value: boolean, agg: Aggregate<boolean>) {
+    setEdits((prev) => {
+      const next = { ...prev };
+      if (agg.same && value === agg.value) delete next[key];
+      else next[key] = value;
+      return next;
+    });
   }
 
   function handleSubmit() {
-    const validOps = ops.filter((o) => {
-      if (FLAG_FIELDS.includes(o.field)) return true;
-      return o.value.trim().length > 0;
+    const operations: EditOperation[] = Object.entries(edits).map(([key, value]) => {
+      if (key === "title") return { field: "title", value };
+      const [trackType, indexStr, field] = key.split(":");
+      return {
+        field: field as EditableField,
+        trackSelector: { trackType: trackType as TrackType, trackIndex: Number(indexStr) },
+        value,
+      };
     });
-    if (validOps.length === 0) {
-      toast.warning("Add at least one operation with a value");
+
+    if (operations.length === 0) {
+      toast.warning("Change at least one field before applying");
       return;
     }
 
-    createJob.mutate({
-      filePaths,
-      operations: validOps.map(toEditOperation),
-      dryRun,
-    });
+    const badLanguage = operations.find(
+      (op) => op.field === "trackLanguage" && !ISO_639_2.test(String(op.value))
+    );
+    if (badLanguage) {
+      toast.error("Track language must be a 3-letter ISO 639-2 code (e.g. eng, jpn)");
+      return;
+    }
+
+    createJob.mutate({ filePaths, operations, dryRun });
+  }
+
+  const filesMeta = (metaResults ?? []).filter((r) => r.metadata).map((r) => r.metadata!);
+  const totalFiles = filesMeta.length;
+  const titleAgg = aggregate(filesMeta.map((m) => m.title ?? ""));
+
+  const videoSlots = buildSlots(filesMeta, "video");
+  const audioSlots = buildSlots(filesMeta, "audio");
+  const subtitleSlots = buildSlots(filesMeta, "subtitles");
+
+  const availabilityNotes: string[] = [];
+  for (const [label, slots] of [
+    ["Video", videoSlots],
+    ["Audio", audioSlots],
+    ["Subtitle", subtitleSlots],
+  ] as const) {
+    for (const slot of slots) {
+      if (slot.filesPresent < totalFiles) {
+        availabilityNotes.push(
+          `${label} track ${slot.index + 1} is present in ${slot.filesPresent} of ${totalFiles} files — edits to it only apply to those files.`
+        );
+      }
+    }
   }
 
   return (
@@ -187,128 +244,118 @@ export function BulkEditPage() {
         </ul>
       </section>
 
-      {conflicts.length > 0 && (
+      {metaLoading && <p className="muted">Loading current metadata…</p>}
+
+      {availabilityNotes.length > 0 && (
         <div className="notice notice--warn">
           <p className="notice__lead">
             <IconAlertTriangle />
-            Track index conflicts detected
+            Track counts differ across the selected files
           </p>
           <ul className="notice__list">
-            {conflicts.map((c, i) => (
-              <li key={i}>{c}</li>
+            {availabilityNotes.map((n, i) => (
+              <li key={i}>{n}</li>
             ))}
           </ul>
         </div>
       )}
 
-      <section className="stack">
-        <div className="toolbar" style={{ justifyContent: "space-between" }}>
-          <p className="card__title" style={{ marginBottom: 0 }}>Operations</p>
-          <button className="button button--quiet button--sm" onClick={addOp}>
-            <IconPlus /> Add operation
-          </button>
-        </div>
-        <div className="stack">
-          {ops.map((op) => (
-            <div key={op.id} className="card stack">
-              <div className="form-grid">
-                <div className="field">
-                  <label className="field__label">Field</label>
-                  <select
-                    className="field__input"
-                    value={op.field}
-                    onChange={(e) => {
-                      const field = e.target.value as EditableField;
-                      updateOp(op.id, {
-                        field,
-                        value: "",
-                        boolValue: false,
-                        trackIndex: TRACK_FIELDS.includes(field) ? 0 : op.trackIndex,
-                      });
-                    }}
-                  >
-                    {Object.entries(FIELD_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+      {!metaLoading && totalFiles > 0 && (
+        <>
+          <section className="card stack">
+            <p className="card__title">General</p>
+            <TextField
+              label="Title"
+              agg={titleAgg}
+              edited={edits.title as string | undefined}
+              onChange={(v) => setText("title", v, titleAgg)}
+            />
+          </section>
 
-                <div className="field">
-                  <label className="field__label">Value</label>
-                  {FLAG_FIELDS.includes(op.field) ? (
-                    <select
-                      className="field__input"
-                      value={op.boolValue ? "true" : "false"}
-                      onChange={(e) => updateOp(op.id, { boolValue: e.target.value === "true" })}
-                    >
-                      <option value="true">Yes / 1 (enabled)</option>
-                      <option value="false">No / 0 (disabled)</option>
-                    </select>
-                  ) : (
-                    <input
-                      className="field__input"
-                      type="text"
-                      placeholder={
-                        op.field === "trackLanguage" ? "e.g. eng" : op.field === "trackLanguageIETF" ? "e.g. en-US" : "Enter value…"
-                      }
-                      value={op.value}
-                      onChange={(e) => updateOp(op.id, { value: e.target.value })}
-                    />
-                  )}
-                </div>
-              </div>
+          {videoSlots.length > 0 && (
+            <section className="card stack">
+              <p className="card__title">Video track{videoSlots.length !== 1 ? "s" : ""}</p>
+              {videoSlots.map((slot) => {
+                const key = trackKey("video", slot.index, "trackLanguage");
+                return (
+                  <TextField
+                    key={key}
+                    label={`Track ${slot.index + 1} — Language (ISO 639-2)`}
+                    agg={slot.language}
+                    edited={edits[key] as string | undefined}
+                    onChange={(v) => setText(key, v, slot.language)}
+                    maxLength={3}
+                    hint="e.g. eng, jpn, fre"
+                    lowercase
+                  />
+                );
+              })}
+            </section>
+          )}
 
-              {TRACK_FIELDS.includes(op.field) && op.field !== "title" && (
-                <div className="form-grid form-grid--divider">
-                  <div className="field">
-                    <label className="field__label">Track type</label>
-                    <select
-                      className="field__input"
-                      value={op.trackType}
-                      onChange={(e) => updateOp(op.id, { trackType: e.target.value as TrackType | "*" })}
-                    >
-                      {TRACK_TYPES.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label className="field__label">Track index</label>
-                    <select
-                      className="field__input"
-                      value={op.trackIndex === "*" ? "*" : String(op.trackIndex)}
-                      onChange={(e) =>
-                        updateOp(op.id, {
-                          trackIndex: e.target.value === "*" ? "*" : Number(e.target.value),
-                        })
-                      }
-                    >
-                      <option value="*">All tracks of this type</option>
-                      {[0, 1, 2, 3, 4, 5].map((i) => (
-                        <option key={i} value={i}>
-                          Index {i}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {ops.length > 1 && (
-                <div className="toolbar toolbar--end">
-                  <button className="button button--danger button--sm" onClick={() => removeOp(op.id)}>
-                    <IconTrash /> Remove
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
+          {([
+            ["audio", "Audio", audioSlots],
+            ["subtitles", "Subtitle", subtitleSlots],
+          ] as const).map(([type, label, slots]) =>
+            slots.length > 0 ? (
+              <section key={type} className="card stack">
+                <p className="card__title">
+                  {label} track{slots.length !== 1 ? "s" : ""}
+                </p>
+                {slots.map((slot) => {
+                  const langKey = trackKey(type, slot.index, "trackLanguage");
+                  const nameKey = trackKey(type, slot.index, "trackName");
+                  const defaultKey = trackKey(type, slot.index, "trackFlagDefault");
+                  const enabledKey = trackKey(type, slot.index, "trackFlagEnabled");
+                  const forcedKey = trackKey(type, slot.index, "trackFlagForced");
+                  return (
+                    <div key={slot.index} className="stack" style={{ gap: "var(--space-2)" }}>
+                      <p className="section-label">Track {slot.index + 1}</p>
+                      <div className="form-grid">
+                        <TextField
+                          label="Language (ISO 639-2)"
+                          agg={slot.language}
+                          edited={edits[langKey] as string | undefined}
+                          onChange={(v) => setText(langKey, v, slot.language)}
+                          maxLength={3}
+                          hint="e.g. eng, jpn, fre"
+                          lowercase
+                        />
+                        <TextField
+                          label="Name / Title"
+                          agg={slot.name}
+                          edited={edits[nameKey] as string | undefined}
+                          onChange={(v) => setText(nameKey, v, slot.name)}
+                        />
+                      </div>
+                      <div className="toolbar">
+                        <TriCheckbox
+                          label="Default"
+                          agg={slot.flagDefault}
+                          edited={edits[defaultKey] as boolean | undefined}
+                          onChange={(v) => setBool(defaultKey, v, slot.flagDefault)}
+                        />
+                        <TriCheckbox
+                          label="Enabled"
+                          agg={slot.flagEnabled}
+                          edited={edits[enabledKey] as boolean | undefined}
+                          onChange={(v) => setBool(enabledKey, v, slot.flagEnabled)}
+                        />
+                        <TriCheckbox
+                          label="Forced"
+                          agg={slot.flagForced}
+                          edited={edits[forcedKey] as boolean | undefined}
+                          onChange={(v) => setBool(forcedKey, v, slot.flagForced)}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+            ) : null
+          )}
+        </>
+      )}
 
       <div className="toolbar form-grid--divider" style={{ justifyContent: "space-between" }}>
         <label className="field--inline" style={{ cursor: "pointer" }}>
