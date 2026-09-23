@@ -38,11 +38,23 @@ export function JobDetailPage() {
     queryKey: ["job", id],
     queryFn: () => api.jobs.get(id!),
     enabled: !!id,
+    // Fallback for when the WebSocket never delivers a completion event (e.g. it
+    // fails to connect through a proxy/auth layer) — keep polling until terminal.
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "running" || status === "pending" ? 2000 : false;
+    },
   });
 
   const ws = useJobSocket(id ?? null);
 
-  const job = ws.job ?? initialJob;
+  // Prefer whichever source has the freshest data — the WebSocket can stall or
+  // fail silently (e.g. a proxy/auth layer blocking the upgrade), in which case
+  // the polling fallback above is the only thing still advancing job status.
+  const job =
+    !ws.job || (initialJob && new Date(initialJob.updatedAt) > new Date(ws.job.updatedAt))
+      ? initialJob ?? ws.job
+      : ws.job;
   const liveFiles = ws.files;
 
   const finalJobData = useQuery({
@@ -188,36 +200,38 @@ function FileRow({ file }: { file: JobFile }) {
 
       {expanded && hasDetail && (
         <tr className="tr--expanded">
-          <td colSpan={4} className="stack" style={{ gap: "var(--space-2)" }}>
-            {file.errorMessage && (
-              <div className="notice notice--error" style={{ fontFamily: "var(--font-mono)", whiteSpace: "pre-wrap" }}>
-                {file.errorMessage}
-                {file.exitCode !== null && file.exitCode !== undefined && (
-                  <span className="table__cell--muted"> (exit {file.exitCode})</span>
-                )}
-              </div>
-            )}
+          <td colSpan={4}>
+            <div className="stack" style={{ gap: "var(--space-2)" }}>
+              {file.errorMessage && (
+                <div className="notice notice--error" style={{ fontFamily: "var(--font-mono)", whiteSpace: "pre-wrap" }}>
+                  {file.errorMessage}
+                  {file.exitCode !== null && file.exitCode !== undefined && (
+                    <span className="table__cell--muted"> (exit {file.exitCode})</span>
+                  )}
+                </div>
+              )}
 
-            {file.changesSummary?.changes?.map((c, i) => (
-              <div key={i} className="diff">
-                <span className="diff__field">{c.field}</span>
-                {c.trackSelector && (
-                  <span className="diff__field">
-                    [{c.trackSelector.trackType}:{c.trackSelector.trackIndex}]
-                  </span>
-                )}
-                <span className="diff__before">{String(c.before ?? "∅")}</span>
-                <span className="diff__field">→</span>
-                <span className="diff__after">{String(c.after)}</span>
-              </div>
-            ))}
+              {file.changesSummary?.changes?.map((c, i) => (
+                <div key={i} className="diff">
+                  <span className="diff__field">{c.field}</span>
+                  {c.trackSelector && (
+                    <span className="diff__field">
+                      [{c.trackSelector.trackType}:{c.trackSelector.trackIndex}]
+                    </span>
+                  )}
+                  <span className="diff__before">{String(c.before ?? "∅")}</span>
+                  <span className="diff__field">→</span>
+                  <span className="diff__after">{String(c.after)}</span>
+                </div>
+              ))}
 
-            {file.changesSummary?.warnings?.map((w, i) => (
-              <p key={i} className="notice__lead" style={{ color: "var(--warn)", fontSize: "var(--type-xs)" }}>
-                <IconAlertTriangle />
-                {w}
-              </p>
-            ))}
+              {file.changesSummary?.warnings?.map((w, i) => (
+                <p key={i} className="notice__lead" style={{ color: "var(--warn)", fontSize: "var(--type-xs)" }}>
+                  <IconAlertTriangle />
+                  {w}
+                </p>
+              ))}
+            </div>
           </td>
         </tr>
       )}
