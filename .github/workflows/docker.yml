@@ -133,10 +133,17 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend-v2
           provenance: false
 
+      # docker/metadata-action's sha tag is a 7-char short SHA, not full `github.sha` —
+      # resolve the actual tag it built once so the smoke test and scan agree with it.
+      - name: Resolve primary tag
+        if: github.event_name == 'pull_request'
+        id: tag
+        run: echo "value=$(printf '%s' "${{ steps.meta.outputs.tags }}" | head -n1)" >> "$GITHUB_OUTPUT"
+
       - name: Smoke-test the backend image
         if: github.event_name == 'pull_request'
         run: |
-          tag="$(printf '%s' "${{ steps.meta.outputs.tags }}" | head -n1)"
+          tag="${{ steps.tag.outputs.value }}"
           docker run -d --name mw-backend-smoke \
             -e DATA_DIR=/tmp/data \
             -e PORT=3001 \
@@ -159,7 +166,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          image-ref: "${{ steps.image.outputs.name }}:sha-${{ github.sha }}"
+          image-ref: "${{ steps.tag.outputs.value }}"
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
@@ -238,10 +245,17 @@ jobs:
           cache-to: type=gha,mode=max,scope=frontend-v2
           provenance: false
 
+      # docker/metadata-action's sha tag is a 7-char short SHA, not full `github.sha` —
+      # resolve the actual tag it built once so the smoke test and scan agree with it.
+      - name: Resolve primary tag
+        if: github.event_name == 'pull_request'
+        id: tag
+        run: echo "value=$(printf '%s' "${{ steps.meta.outputs.tags }}" | head -n1)" >> "$GITHUB_OUTPUT"
+
       - name: Smoke-test the frontend image
         if: github.event_name == 'pull_request'
         run: |
-          tag="$(printf '%s' "${{ steps.meta.outputs.tags }}" | head -n1)"
+          tag="${{ steps.tag.outputs.value }}"
           docker run -d --name mw-frontend-smoke -p 8080:8080 "$tag"
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8080/ > /dev/null 2>&1; then
@@ -263,7 +277,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          image-ref: "${{ steps.image.outputs.name }}:sha-${{ github.sha }}"
+          image-ref: "${{ steps.tag.outputs.value }}"
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
