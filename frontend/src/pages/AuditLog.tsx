@@ -3,7 +3,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ClipboardList, ChevronRight } from "lucide-react";
+import { IconChevronRight, IconClipboard } from "@/icons";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 import type { AuditAction } from "@/types";
@@ -18,12 +18,12 @@ const ACTION_LABELS: Record<AuditAction, string> = {
 };
 
 const ACTION_BADGE: Record<AuditAction, string> = {
-  scan: "badge-muted",
-  edit: "badge-running",
-  undo: "badge-warning",
-  mount_add: "badge-success",
-  mount_remove: "badge-danger",
-  mount_update: "badge-muted",
+  scan: "badge",
+  edit: "badge badge--info",
+  undo: "badge badge--warn",
+  mount_add: "badge badge--ok",
+  mount_remove: "badge badge--alert",
+  mount_update: "badge",
 };
 
 export function AuditLogPage() {
@@ -34,61 +34,45 @@ export function AuditLogPage() {
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold flex items-center gap-2">
-        <ClipboardList size={18} />
-        Audit Log
-      </h1>
+    <div className="stack">
+      <div className="page__header">
+        <h1 className="page__heading page__title">
+          <IconClipboard />
+          Audit Log
+        </h1>
+      </div>
 
-      {isLoading && <p className="text-muted text-sm">Loading…</p>}
-      {!isLoading && (!entries || entries.length === 0) && (
-        <p className="text-muted text-sm">No audit entries yet.</p>
-      )}
+      {isLoading && <p className="muted">Loading…</p>}
+      {!isLoading && (!entries || entries.length === 0) && <p className="muted">No audit entries yet.</p>}
 
       {entries && entries.length > 0 && (
-        <div className="border border-border rounded overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-surface border-b border-border">
+        <div className="table-scroll">
+          <table className="table">
+            <thead>
               <tr>
-                <th className="px-3 py-2 text-left font-medium text-muted">Time</th>
-                <th className="px-3 py-2 text-left font-medium text-muted">Action</th>
-                <th className="px-3 py-2 text-left font-medium text-muted">User</th>
-                <th className="px-3 py-2 text-left font-medium text-muted hidden sm:table-cell">
-                  Detail
-                </th>
-                <th className="w-8 px-3 py-2" />
+                <th>Time</th>
+                <th>Action</th>
+                <th>User</th>
+                <th>Detail</th>
+                <th className="table__cell--icon" />
               </tr>
             </thead>
             <tbody>
               {entries.map((e) => (
                 <tr
                   key={e.id}
-                  className={`border-b border-gray-100 ${
-                    e.jobId
-                      ? "hover:bg-surface cursor-pointer"
-                      : ""
-                  }`}
-                  onClick={() => { if (e.jobId) void navigate(`/jobs/${e.jobId}`); }}
+                  className={e.jobId ? "tr--clickable" : undefined}
+                  onClick={() => {
+                    if (e.jobId) void navigate(`/jobs/${e.jobId}`);
+                  }}
                 >
-                  <td className="px-3 py-2 text-xs whitespace-nowrap">
-                    {formatDate(e.createdAt)}
+                  <td className="table__cell--muted">{formatDate(e.createdAt)}</td>
+                  <td>
+                    <span className={ACTION_BADGE[e.action] ?? "badge"}>{ACTION_LABELS[e.action] ?? e.action}</span>
                   </td>
-                  <td className="px-3 py-2">
-                    <span className={ACTION_BADGE[e.action] ?? "badge-muted"}>
-                      {ACTION_LABELS[e.action] ?? e.action}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted">{e.userEmail}</td>
-                  <td className="px-3 py-2 hidden sm:table-cell text-xs text-muted font-mono truncate max-w-xs">
-                    {e.detail
-                      ? JSON.stringify(e.detail).slice(0, 80)
-                      : "—"}
-                  </td>
-                  <td className="px-3 py-2">
-                    {e.jobId && (
-                      <ChevronRight size={14} className="text-muted" />
-                    )}
-                  </td>
+                  <td className="table__cell--muted">{e.userEmail}</td>
+                  <td className="table__cell--path">{e.detail ? JSON.stringify(e.detail).slice(0, 80) : "—"}</td>
+                  <td>{e.jobId && <IconChevronRight className="table__cell--muted" />}</td>
                 </tr>
               ))}
             </tbody>

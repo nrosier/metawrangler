@@ -15,7 +15,11 @@ LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 
-RUN chown -R nginx:nginx /usr/share/nginx/html
+# apk upgrade: picks up patched packages (openssl, libxml2, zlib, etc.) not
+# yet baked into the base image tag's cached layer.
+RUN apk update \
+    && apk upgrade --no-cache \
+    && chown -R nginx:nginx /usr/share/nginx/html
 
 USER nginx
 

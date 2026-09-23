@@ -1,0 +1,597 @@
+/*
+ * The primitives every page shares: page headers, cards, buttons, form fields,
+ * notices, badges, tables. No literal colour appears below this comment.
+ */
+
+/* ── Page headers ────────────────────────────────────────────────────────── */
+
+.page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.page__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.page__title {
+  font-size: var(--type-2xl);
+}
+
+.page__lede {
+  margin-top: var(--space-2);
+  margin-bottom: 0;
+  max-width: 60ch;
+  color: var(--text-muted);
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+
+.stack {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.toolbar--end {
+  justify-content: flex-end;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+
+.card {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.card--sunken {
+  background: var(--surface-sunken);
+  box-shadow: none;
+}
+
+.card__title {
+  margin-bottom: var(--space-3);
+  font-size: var(--type-base);
+  font-weight: var(--weight-semibold);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.5rem;
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: var(--type-base);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  transition:
+    background var(--transition),
+    color var(--transition),
+    border-color var(--transition);
+}
+
+.button:hover {
+  background: var(--accent-hover);
+  color: var(--accent-text);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.button--quiet {
+  border-color: var(--border);
+  background: var(--surface-card);
+  color: var(--text-muted);
+}
+
+.button--quiet:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.button--danger {
+  border-color: var(--negative-soft);
+  background: var(--surface-card);
+  color: var(--negative);
+}
+
+.button--danger:hover {
+  background: var(--negative-soft);
+  border-color: var(--negative);
+  color: var(--negative);
+}
+
+/* Square, for a button whose entire label is an icon plus an `aria-label`. */
+.button--icon {
+  width: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0;
+}
+
+/* Smaller, for inline row actions. */
+.button--sm {
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  font-size: var(--type-xs);
+}
+
+.button--sm.button--icon {
+  width: 1.75rem;
+}
+
+/* ── Form fields ─────────────────────────────────────────────────────────── */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.field__label {
+  font-size: var(--type-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+
+.field__input {
+  min-height: 2.5rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-page);
+  transition: border-color var(--transition);
+}
+
+.field__input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.field__input:disabled {
+  opacity: 0.6;
+}
+
+.field__checkbox {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+}
+
+/* ── Notices ─────────────────────────────────────────────────────────────── */
+
+.notice {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--type-sm);
+}
+
+.notice--error {
+  border-color: var(--negative);
+  background: var(--negative-soft);
+  color: var(--negative);
+}
+
+.notice--warn {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.notice--info {
+  border-color: var(--info);
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.notice__lead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-1);
+  font-weight: var(--weight-medium);
+}
+
+.notice__list {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.badge--ok {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+.badge--info {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.badge--warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.badge--alert {
+  background: var(--negative-soft);
+  color: var(--negative);
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+
+.table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  scrollbar-gutter: stable;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table thead th {
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody .tr--clickable {
+  cursor: pointer;
+}
+
+.table tbody .tr--clickable:hover {
+  background: var(--surface-hover);
+}
+
+.table tbody .tr--selected {
+  background: var(--accent-soft);
+}
+
+.table tbody .tr--expanded {
+  background: var(--surface-sunken);
+}
+
+.table__cell--icon {
+  width: 1.75rem;
+}
+
+.table__cell--name {
+  font-weight: var(--weight-medium);
+}
+
+.table__cell--path {
+  overflow: hidden;
+  max-width: 28rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table__cell--muted {
+  color: var(--text-muted);
+}
+
+.table__chevron {
+  color: var(--text-muted);
+  transition: transform var(--transition);
+}
+
+.table__chevron--open {
+  transform: rotate(90deg);
+}
+
+.icon--accent {
+  color: var(--accent);
+}
+
+.icon--danger {
+  color: var(--negative);
+}
+
+.table__caption {
+  padding: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--type-sm);
+  text-align: center;
+}
+
+/* ── Diff rows (job/bulk-edit change previews) ──────────────────────────── */
+
+.diff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+}
+
+.diff__field {
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+}
+
+.diff__before {
+  color: var(--negative);
+  text-decoration: line-through;
+}
+
+.diff__after {
+  color: var(--positive);
+}
+
+/* ── Chips (mount selector, filter toggles) ─────────────────────────────── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.25rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text);
+  font-size: var(--type-sm);
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition);
+}
+
+.chip:hover {
+  background: var(--surface-hover);
+}
+
+.chip--active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.chip--active:hover {
+  background: var(--accent-hover);
+}
+
+.chip__meta {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+}
+
+.chip--active .chip__meta {
+  background: rgb(255 255 255 / 0.2);
+  color: var(--accent-text);
+}
+
+/* A text input with a leading icon, e.g. the file filter box. */
+.field--search {
+  position: relative;
+  flex: 1;
+}
+
+.field--search .field__input {
+  padding-left: calc(var(--space-3) + 1.1rem);
+}
+
+.field--search .field__icon {
+  position: absolute;
+  left: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+}
+
+/* ── Forms of repeated fields (bulk-edit operations) ────────────────────── */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+
+.form-grid--divider {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+@media (min-width: 32rem) {
+  .form-grid--3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.section-label {
+  margin-bottom: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.file-list {
+  display: grid;
+  gap: 2px;
+  max-height: 9rem;
+  overflow-y: auto;
+}
+
+.file-list__item {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Track list (per-file MKV tracks) ───────────────────────────────────── */
+
+.track-list {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.track-list__empty {
+  font-size: var(--type-xs);
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.track-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--type-xs);
+}
+
+.track-row:last-child {
+  border-bottom: 0;
+}
+
+.track-row__id,
+.track-row__codec {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.track-row__lang {
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.track-row__name {
+  overflow: hidden;
+  max-width: 16rem;
+  font-style: italic;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-row__flags {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+/* ── Stat cards (job summary) ────────────────────────────────────────────── */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+
+@media (min-width: 32rem) {
+  .stat-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.stat {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.stat__label {
+  font-size: var(--type-xs);
+  color: var(--text-muted);
+}
+
+.stat__value {
+  margin-top: 2px;
+  font-size: var(--type-sm);
+  font-weight: var(--weight-medium);
+}
+
+/* ── Progress bar ────────────────────────────────────────────────────────── */
+
+.progress {
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+
+.progress__fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  transition: width var(--transition);
+}

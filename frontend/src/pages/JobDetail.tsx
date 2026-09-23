@@ -1,32 +1,32 @@
 /**
  * Job detail page — live progress stream + per-file results + undo button.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  ChevronLeft,
-  RotateCcw,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Loader2,
-  SkipForward,
-  AlertTriangle,
-} from "lucide-react";
+  IconAlertTriangle,
+  IconCheckCircle,
+  IconChevronLeft,
+  IconClock,
+  IconLoader,
+  IconRotateCcw,
+  IconSkipForward,
+  IconXCircle,
+} from "@/icons";
 import { api } from "@/lib/api";
 import { useJobSocket } from "@/hooks/useJobSocket";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatPath, formatDate } from "@/lib/utils";
 import type { JobFile, FileStatus } from "@/types";
 
-const fileStatusIcon: Record<FileStatus, React.ReactNode> = {
-  pending: <Clock size={14} className="text-muted" />,
-  running: <Loader2 size={14} className="text-blue-500 animate-spin" />,
-  success: <CheckCircle2 size={14} className="text-green-600" />,
-  failed: <XCircle size={14} className="text-red-600" />,
-  skipped: <SkipForward size={14} className="text-amber-500" />,
+const fileStatusIcon: Record<FileStatus, ReactNode> = {
+  pending: <IconClock className="table__cell--muted" />,
+  running: <IconLoader className="spin icon--accent" />,
+  success: <IconCheckCircle className="badge--ok" />,
+  failed: <IconXCircle className="icon--danger" />,
+  skipped: <IconSkipForward />,
 };
 
 export function JobDetailPage() {
@@ -34,27 +34,16 @@ export function JobDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Initial load
   const { data: initialJob } = useQuery({
     queryKey: ["job", id],
     queryFn: () => api.jobs.get(id!),
     enabled: !!id,
   });
 
-  // Live WebSocket stream
   const ws = useJobSocket(id ?? null);
 
-  // Merge: WS data overrides REST data while job is running
   const job = ws.job ?? initialJob;
   const liveFiles = ws.files;
-
-  // When job completes via WS, refresh the full job data (for final file details)
-  useQuery({
-    queryKey: ["job-final", id],
-    queryFn: () => api.jobs.get(id!),
-    enabled: ws.complete,
-    staleTime: 0,
-  });
 
   const finalJobData = useQuery({
     queryKey: ["job-final", id],
@@ -63,10 +52,8 @@ export function JobDetailPage() {
   }).data;
 
   const displayFiles: JobFile[] =
-    finalJobData?.files ??
-    (initialJob?.files.map((f) => liveFiles.get(f.filePath) ?? f) ?? []);
+    finalJobData?.files ?? (initialJob?.files.map((f) => liveFiles.get(f.filePath) ?? f) ?? []);
 
-  // Undo mutation
   const undoMutation = useMutation({
     mutationFn: () => api.jobs.undo(id!),
     onSuccess: ({ jobId }) => {
@@ -80,97 +67,77 @@ export function JobDetailPage() {
   });
 
   if (!job) {
-    return <div className="p-6 text-muted text-sm">Loading…</div>;
+    return <p className="muted">Loading…</p>;
   }
 
-  const progress =
-    job.totalFiles > 0
-      ? Math.round((job.processedFiles / job.totalFiles) * 100)
-      : 0;
+  const progress = job.totalFiles > 0 ? Math.round((job.processedFiles / job.totalFiles) * 100) : 0;
 
-  const canUndo =
-    (job.status === "done") &&
-    !job.dryRun;
+  const canUndo = job.status === "done" && !job.dryRun;
 
   return (
-    <div className="flex flex-col gap-4 max-w-3xl">
-      <div className="flex items-center gap-2">
-        <button className="btn-ghost" onClick={() => { void navigate("/jobs"); }}>
-          <ChevronLeft size={14} />
+    <div className="stack" style={{ maxWidth: "48rem" }}>
+      <div className="page__heading">
+        <button className="button button--quiet button--icon" onClick={() => { void navigate("/jobs"); }} aria-label="Back to jobs">
+          <IconChevronLeft />
         </button>
-        <h1 className="text-lg font-semibold">Job</h1>
+        <h1 className="page__title">Job</h1>
         <StatusBadge status={job.status} />
-        {job.dryRun && (
-          <span className="badge badge-warning">dry-run</span>
+        {job.dryRun && <span className="badge badge--warn">dry-run</span>}
+        {canUndo && (
+          <button
+            className="button button--quiet"
+            style={{ marginLeft: "auto" }}
+            onClick={() => undoMutation.mutate()}
+            disabled={undoMutation.isPending}
+            title="Undo all changes made by this job"
+          >
+            <IconRotateCcw />
+            Undo
+          </button>
         )}
-        <div className="ml-auto flex gap-2">
-          {canUndo && (
-            <button
-              className="btn-ghost"
-              onClick={() => undoMutation.mutate()}
-              disabled={undoMutation.isPending}
-              title="Undo all changes made by this job"
-            >
-              <RotateCcw size={14} />
-              Undo
-            </button>
-          )}
-        </div>
       </div>
 
-      {/* Job summary */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="stat-grid">
         {[
           { label: "Created", value: formatDate(job.createdAt) },
           { label: "User", value: job.userEmail },
           { label: "Files", value: `${job.processedFiles} / ${job.totalFiles}` },
-          {
-            label: "Status",
-            value: <StatusBadge status={job.status} />,
-          },
+          { label: "Status", value: <StatusBadge status={job.status} /> },
         ].map(({ label, value }) => (
-          <div key={label} className="bg-surface rounded px-3 py-2 border border-border">
-            <p className="text-xs text-muted">{label}</p>
-            <p className="text-sm font-medium mt-0.5">{value}</p>
+          <div key={label} className="stat">
+            <p className="stat__label">{label}</p>
+            <p className="stat__value">{value}</p>
           </div>
         ))}
       </div>
 
-      {/* Progress bar */}
       {(job.status === "running" || job.status === "pending") && (
-        <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-          <div
-            className="h-full bg-accent transition-all duration-300 ease-out"
-            style={{ width: `${progress}%` }}
-          />
+        <div className="progress">
+          <div className="progress__fill" style={{ width: `${progress}%` }} />
         </div>
       )}
 
-      {/* Connection status */}
       {ws.connected && (
-        <p className="text-xs text-blue-600 flex items-center gap-1">
-          <Loader2 size={11} className="animate-spin" />
+        <p className="notice__lead icon--accent" style={{ fontSize: "var(--type-xs)" }}>
+          <IconLoader className="spin" />
           Live updates active
         </p>
       )}
       {ws.error && (
-        <p className="text-xs text-red-600 flex items-center gap-1">
-          <AlertTriangle size={11} />
+        <p className="notice__lead icon--danger" style={{ fontSize: "var(--type-xs)" }}>
+          <IconAlertTriangle />
           {ws.error}
         </p>
       )}
 
-      {/* Per-file results */}
-      <div className="border border-border rounded overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surface border-b border-border">
+      <div className="table-scroll">
+        <table className="table">
+          <thead>
             <tr>
-              <th className="w-6 px-3 py-2" />
-              <th className="px-3 py-2 text-left font-medium text-muted">File</th>
-              <th className="px-3 py-2 text-left font-medium text-muted">Status</th>
-              <th className="px-3 py-2 text-left font-medium text-muted hidden sm:table-cell">
-                Changes
-              </th>
+              <th className="table__cell--icon" />
+              <th>File</th>
+              <th>Status</th>
+              <th>Changes</th>
             </tr>
           </thead>
           <tbody>
@@ -179,7 +146,7 @@ export function JobDetailPage() {
             ))}
             {displayFiles.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-muted text-xs">
+                <td colSpan={4} className="table__caption">
                   No file data yet…
                 </td>
               </tr>
@@ -201,65 +168,55 @@ function FileRow({ file }: { file: JobFile }) {
 
   return (
     <>
-      <tr
-        className={`border-b border-gray-100 ${hasDetail ? "cursor-pointer hover:bg-surface" : ""}`}
-        onClick={() => hasDetail && setExpanded((v) => !v)}
-      >
-        <td className="px-3 py-2">{fileStatusIcon[file.status]}</td>
-        <td className="px-3 py-2 font-mono text-xs truncate max-w-xs">
-          <span className="font-sans text-sm text-gray-900">
-            {formatPath(file.filePath)}
-          </span>
-          <div className="text-muted truncate">{file.filePath}</div>
+      <tr className={hasDetail ? "tr--clickable" : undefined} onClick={() => hasDetail && setExpanded((v) => !v)}>
+        <td>{fileStatusIcon[file.status]}</td>
+        <td>
+          <div className="table__cell--name">{formatPath(file.filePath)}</div>
+          <div className="table__cell--path">{file.filePath}</div>
         </td>
-        <td className="px-3 py-2">
+        <td>
           <StatusBadge status={file.status} />
         </td>
-        <td className="px-3 py-2 hidden sm:table-cell text-xs text-muted">
+        <td className="table__cell--muted">
           {file.changesSummary?.changes?.length
             ? `${file.changesSummary.changes.length} change(s)`
             : file.status === "skipped"
-            ? "No matching tracks"
-            : "—"}
+              ? "No matching tracks"
+              : "—"}
         </td>
       </tr>
 
       {expanded && hasDetail && (
-        <tr className="bg-surface">
-          <td colSpan={4} className="px-6 py-3 text-xs space-y-2">
-            {/* Error */}
+        <tr className="tr--expanded">
+          <td colSpan={4} className="stack" style={{ gap: "var(--space-2)" }}>
             {file.errorMessage && (
-              <div className="rounded border border-red-200 bg-red-50 px-3 py-2 font-mono text-red-700 whitespace-pre-wrap">
+              <div className="notice notice--error" style={{ fontFamily: "var(--font-mono)", whiteSpace: "pre-wrap" }}>
                 {file.errorMessage}
                 {file.exitCode !== null && file.exitCode !== undefined && (
-                  <span className="ml-2 text-red-400">(exit {file.exitCode})</span>
+                  <span className="table__cell--muted"> (exit {file.exitCode})</span>
                 )}
               </div>
             )}
 
-            {/* Changes */}
             {file.changesSummary?.changes?.map((c, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <span className="text-muted shrink-0">{c.field}</span>
+              <div key={i} className="diff">
+                <span className="diff__field">{c.field}</span>
                 {c.trackSelector && (
-                  <span className="text-muted shrink-0">
+                  <span className="diff__field">
                     [{c.trackSelector.trackType}:{c.trackSelector.trackIndex}]
                   </span>
                 )}
-                <span className="font-mono line-through text-red-500">
-                  {String(c.before ?? "∅")}
-                </span>
-                <span className="text-muted">→</span>
-                <span className="font-mono text-green-700">{String(c.after)}</span>
+                <span className="diff__before">{String(c.before ?? "∅")}</span>
+                <span className="diff__field">→</span>
+                <span className="diff__after">{String(c.after)}</span>
               </div>
             ))}
 
-            {/* Warnings */}
             {file.changesSummary?.warnings?.map((w, i) => (
-              <div key={i} className="flex items-center gap-1 text-amber-700">
-                <AlertTriangle size={11} />
+              <p key={i} className="notice__lead" style={{ color: "var(--warn)", fontSize: "var(--type-xs)" }}>
+                <IconAlertTriangle />
                 {w}
-              </div>
+              </p>
             ))}
           </td>
         </tr>
@@ -267,4 +224,3 @@ function FileRow({ file }: { file: JobFile }) {
     </>
   );
 }
-
