@@ -55,6 +55,11 @@ export const api = {
   scan: {
     listFiles: (mountId: string) =>
       request<{ mountId: string; path: string; files: string[] }>("GET", `/scan/${mountId}`),
+    listDir: (mountId: string, path?: string) =>
+      request<{ mountId: string; path: string; directories: string[]; files: string[] }>(
+        "GET",
+        `/scan/${mountId}/list${path ? `?path=${encodeURIComponent(path)}` : ""}`
+      ),
     listSubdir: (mountId: string, subdir: string) =>
       request<{ files: string[] }>("GET", `/scan/${mountId}/subdir?subdir=${encodeURIComponent(subdir)}`),
     getMetadata: (filePaths: string[]) =>

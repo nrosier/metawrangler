@@ -13,15 +13,30 @@ import {
   IconAlertCircle,
   IconChevronRight,
   IconCheckbox,
+  IconFolder,
   IconPencil,
   IconRefresh,
   IconSearch,
 } from "@/icons";
 import type { Mount, MkvFileMetadata } from "@/types";
 
+function breadcrumbSegments(mount: Mount, currentPath: string): Array<{ label: string; path: string }> {
+  const rel = currentPath === mount.path ? "" : currentPath.slice(mount.path.length).replace(/^\/+/, "");
+  const parts = rel ? rel.split("/") : [];
+  const segments = [{ label: mount.name, path: mount.path }];
+  let acc = mount.path;
+  for (const part of parts) {
+    acc = `${acc}/${part}`;
+    segments.push({ label: part, path: acc });
+  }
+  return segments;
+}
+
 export function BrowsePage() {
   const navigate = useNavigate();
   const [selectedMount, setSelectedMount] = useState<Mount | null>(null);
+  const [currentPath, setCurrentPath] = useState<string | null>(null);
+  const [recursive, setRecursive] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [expandedFile, setExpandedFile] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -31,14 +46,39 @@ export function BrowsePage() {
     queryFn: api.mounts.list,
   });
 
+  function selectMount(m: Mount) {
+    setSelectedMount(m);
+    setCurrentPath(m.path);
+    setRecursive(false);
+    setSelectedFiles(new Set());
+    setExpandedFile(null);
+    setFilter("");
+  }
+
+  function navigateTo(path: string) {
+    setCurrentPath(path);
+    setExpandedFile(null);
+    setFilter("");
+  }
+
   const {
-    data: scanData,
-    isFetching: scanning,
-    refetch: rescan,
+    data: dirData,
+    isFetching: dirLoading,
+    refetch: rescanDir,
   } = useQuery({
-    queryKey: ["scan", selectedMount?.id],
-    queryFn: () => api.scan.listFiles(selectedMount!.id),
-    enabled: !!selectedMount,
+    queryKey: ["scan-dir", selectedMount?.id, currentPath],
+    queryFn: () => api.scan.listDir(selectedMount!.id, currentPath!),
+    enabled: !!selectedMount && !!currentPath && !recursive,
+  });
+
+  const {
+    data: recData,
+    isFetching: recLoading,
+    refetch: rescanRecursive,
+  } = useQuery({
+    queryKey: ["scan-recursive", selectedMount?.id, currentPath],
+    queryFn: () => api.scan.listSubdir(selectedMount!.id, currentPath!),
+    enabled: !!selectedMount && !!currentPath && recursive,
   });
 
   const { data: metaResults } = useQuery({
@@ -49,7 +89,14 @@ export function BrowsePage() {
 
   const expandedMeta: MkvFileMetadata | null = metaResults?.[0]?.metadata ?? null;
 
-  const allFiles = scanData?.files ?? [];
+  const scanning = recursive ? recLoading : dirLoading;
+  const rescan = recursive ? rescanRecursive : rescanDir;
+  const directories = recursive ? [] : dirData?.directories ?? [];
+  const allFiles = (recursive ? recData?.files : dirData?.files) ?? [];
+
+  const filteredDirectories = filter
+    ? directories.filter((d) => formatPath(d).toLowerCase().includes(filter.toLowerCase()))
+    : directories;
   const filteredFiles = filter
     ? allFiles.filter((f) => f.toLowerCase().includes(filter.toLowerCase()))
     : allFiles;
@@ -107,11 +154,7 @@ export function BrowsePage() {
         {mounts?.map((m) => (
           <button
             key={m.id}
-            onClick={() => {
-              setSelectedMount(m);
-              setSelectedFiles(new Set());
-              setFilter("");
-            }}
+            onClick={() => selectMount(m)}
             className={cn("chip", selectedMount?.id === m.id && "chip--active")}
           >
             {m.name}
@@ -126,8 +169,23 @@ export function BrowsePage() {
         )}
       </div>
 
-      {selectedMount && (
+      {selectedMount && currentPath && (
         <div className="stack">
+          <nav className="breadcrumb" aria-label="Current directory">
+            {breadcrumbSegments(selectedMount, currentPath).map((seg, i, arr) => (
+              <Fragment key={seg.path}>
+                {i > 0 && <IconChevronRight className="breadcrumb__sep" />}
+                {i === arr.length - 1 ? (
+                  <span className="breadcrumb__item breadcrumb__item--current">{seg.label}</span>
+                ) : (
+                  <button className="breadcrumb__item" onClick={() => navigateTo(seg.path)}>
+                    {seg.label}
+                  </button>
+                )}
+              </Fragment>
+            ))}
+          </nav>
+
           <div className="toolbar">
             <div className="field--search">
               <IconSearch className="field__icon" />
@@ -139,26 +197,44 @@ export function BrowsePage() {
                 onChange={(e) => setFilter(e.target.value)}
               />
             </div>
+            <label className="field field--inline">
+              <input
+                type="checkbox"
+                className="field__checkbox"
+                checked={recursive}
+                onChange={(e) => setRecursive(e.target.checked)}
+              />
+              <span>All files found here and in paths below this</span>
+            </label>
             <button
               className="button button--quiet button--icon"
               onClick={() => {
                 void rescan();
               }}
               disabled={scanning}
-              title="Re-scan mount"
-              aria-label="Re-scan mount"
+              title="Re-scan"
+              aria-label="Re-scan"
             >
               <IconRefresh className={scanning ? "spin" : ""} />
             </button>
             <span className="muted" style={{ whiteSpace: "nowrap" }}>
+              {!recursive && filteredDirectories.length > 0 && (
+                <>
+                  {filteredDirectories.length} folder{filteredDirectories.length !== 1 ? "s" : ""},{" "}
+                </>
+              )}
               {filteredFiles.length} file{filteredFiles.length !== 1 ? "s" : ""}
             </span>
           </div>
 
           <div className="table-scroll">
             {scanning && <p className="table__caption">Scanning…</p>}
-            {!scanning && filteredFiles.length === 0 && <p className="table__caption">No MKV files found.</p>}
-            {!scanning && filteredFiles.length > 0 && (
+            {!scanning && filteredDirectories.length === 0 && filteredFiles.length === 0 && (
+              <p className="table__caption">
+                {recursive ? "No MKV files found." : "No subdirectories or MKV files here."}
+              </p>
+            )}
+            {!scanning && (filteredDirectories.length > 0 || filteredFiles.length > 0) && (
               <table className="table">
                 <thead>
                   <tr>
@@ -177,6 +253,19 @@ export function BrowsePage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {filteredDirectories.map((d) => (
+                    <tr key={d} className="tr--clickable" onClick={() => navigateTo(d)}>
+                      <td className="table__cell--icon" />
+                      <td>
+                        <div className="table__cell--name">
+                          <IconFolder className="icon--accent" /> {formatPath(d)}
+                        </div>
+                      </td>
+                      <td>
+                        <IconChevronRight className="table__chevron" />
+                      </td>
+                    </tr>
+                  ))}
                   {filteredFiles.map((f) => (
                     <Fragment key={f}>
                       <tr
