@@ -12,9 +12,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@hono/node-server": "^1.14.0",
     "@hono/zod-validator": "^0.4.3",
-    "better-sqlite3": "^11.10.0",
     "drizzle-orm": "^0.45.3",
     "hono": "^4.7.0",
     "pino": "^9.7.0",
@@ -24,7 +22,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
-    "@types/better-sqlite3": "^7.6.11",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.8.0",
     "@typescript-eslint/parser": "^8.8.0",
@@ -39,5 +36,6 @@
     "@esbuild-kit/core-utils": {
       "esbuild": "^0.25.0"
     }
-  }
+  },
+  "trustedDependencies": []
 }

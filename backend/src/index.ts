@@ -1,9 +1,8 @@
 /**
  * MetaWrangler backend — entry point
- * Hono + Bun HTTP server
+ * Hono + Bun native HTTP server
  */
 import { Hono } from "hono";
-import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { logger as honoLogger } from "hono/logger";
@@ -86,9 +85,15 @@ app.onError((err, c) => {
 
 // ── Start server ──────────────────────────────────────────────────────────────
 
-serve(
-  { fetch: app.fetch, port: PORT, hostname: "127.0.0.1" },
-  () => {
-    logger.info({ port: PORT }, "MetaWrangler backend started");
-  }
-);
+Bun.serve({
+  fetch: app.fetch,
+  port: PORT,
+  hostname: "127.0.0.1",
+  websocket: {
+    // Bun requires a websocket handler at the top-level server for upgradeWebSocket to work.
+    // The actual handlers are registered per-route in ws.ts via hono/bun upgradeWebSocket.
+    message() {},
+  },
+});
+
+logger.info({ port: PORT }, "MetaWrangler backend started");

@@ -1,11 +1,12 @@
 # ── Stage 1: Install production dependencies ──────────────────────────────────
-FROM oven/bun:1.2-alpine AS deps
+FROM oven/bun:1.4-alpine AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN bun install --production
+COPY package.json bun.lock* ./
+# bun install with no native addons — fast, no node-gyp required
+RUN bun install --frozen-lockfile --production
 
 # ── Stage 2: Runtime — Alpine + mkvtoolnix + ffmpeg ───────────────────────────
-FROM oven/bun:1.2-alpine
+FROM oven/bun:1.4-alpine
 
 ARG GITHUB_SHA=unknown
 LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
@@ -14,12 +15,14 @@ LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
 RUN apk add --no-cache mkvtoolnix ffmpeg
 
 # Create data directory owned by the 'bun' user (uid 1000 in oven/bun:alpine)
-RUN mkdir -p /app/data /data && chown -R bun:bun /app/data /data
+RUN mkdir -p /app/data && chown -R bun:bun /app/data
 
 WORKDIR /app
 
 # Copy production node_modules from deps stage
 COPY --from=deps --chown=bun:bun /app/node_modules ./node_modules
+
+# Copy source — Bun runs TypeScript natively, no compile step needed
 COPY --chown=bun:bun src ./src
 COPY --chown=bun:bun package.json tsconfig.json ./
 

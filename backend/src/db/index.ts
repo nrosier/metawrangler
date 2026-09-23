@@ -1,8 +1,9 @@
 /**
  * Database connection and migrations bootstrap
+ * Uses Bun's built-in SQLite (bun:sqlite) — no native compilation required.
  */
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { Database } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema.js";
 import { mkdirSync } from "fs";
 import path from "path";
@@ -16,9 +17,9 @@ const DB_PATH = path.join(DATA_DIR, "metawrangler.db");
 const sqlite = new Database(DB_PATH);
 
 // Enable WAL mode for better concurrent read performance
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
-sqlite.pragma("busy_timeout = 5000");
+sqlite.exec("PRAGMA journal_mode = WAL;");
+sqlite.exec("PRAGMA foreign_keys = ON;");
+sqlite.exec("PRAGMA busy_timeout = 5000;");
 
 export const db = drizzle(sqlite, { schema });
 
