@@ -17,11 +17,17 @@ wsRouter.get(
   "/jobs/:id",
   upgradeWebSocket((c) => {
     const jobId = c.req.param("id") ?? "";
-    // Auth is validated by Traefik forward-auth before the WS upgrade reaches us.
+    // Populated by authMiddleware, which is mounted on "/ws/*" in index.ts.
+    const user = c.get("user");
+
+    // Per-connection event handler reference, so onClose can remove exactly
+    // this socket's listener instead of every listener for the job (removing
+    // all of them would silently kill live updates for every other viewer).
+    let handler: ((msg: WsMessage) => void) | null = null;
 
     return {
       onOpen(_, ws) {
-        logger.debug({ jobId }, "WebSocket client connected");
+        logger.debug({ jobId, user: user.uid }, "WebSocket client connected");
 
         if (!jobId) {
           ws.send(JSON.stringify({ type: "error", message: "Missing job id" } satisfies WsMessage));
@@ -40,6 +46,18 @@ wsRouter.get(
         // Cast the DB row's string status to the typed JobStatus
         const job = row as unknown as Job;
 
+        // Ownership check — mirrors the same check already enforced on the
+        // REST job routes (GET /api/jobs/:id, POST /api/jobs/:id/undo).
+        if (job.userId !== user.uid) {
+          logger.warn(
+            { jobId, user: user.uid, owner: job.userId },
+            "WebSocket job access denied — not the owner"
+          );
+          ws.send(JSON.stringify({ type: "error", message: "Forbidden" } satisfies WsMessage));
+          ws.close();
+          return;
+        }
+
         ws.send(JSON.stringify({ type: "job_update", job } satisfies WsMessage));
 
         // If job is already complete, close immediately
@@ -51,15 +69,15 @@ wsRouter.get(
         }
 
         // Subscribe to live events
-        const handler = (msg: WsMessage) => {
+        handler = (msg: WsMessage) => {
           try {
             ws.send(JSON.stringify(msg));
             if (msg.type === "job_complete") {
               ws.close();
-              jobEvents.off(`job:${jobId}`, handler);
+              jobEvents.off(`job:${jobId}`, handler as (msg: WsMessage) => void);
             }
           } catch {
-            jobEvents.off(`job:${jobId}`, handler);
+            jobEvents.off(`job:${jobId}`, handler as (msg: WsMessage) => void);
           }
         };
 
@@ -67,8 +85,11 @@ wsRouter.get(
       },
 
       onClose() {
-        jobEvents.removeAllListeners(`job:${jobId}`);
-        logger.debug({ jobId }, "WebSocket closed — listeners cleaned up");
+        if (handler) {
+          jobEvents.off(`job:${jobId}`, handler);
+          handler = null;
+        }
+        logger.debug({ jobId }, "WebSocket closed — listener cleaned up");
       },
 
       onError(err) {
