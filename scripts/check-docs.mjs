@@ -69,9 +69,15 @@ const survey = readFileSync(path.join(repoRoot, surveyPath), "utf8");
 // try to parse brace-expansion (`routes/{a,b}.ts`) — those are expanded below.
 const pathPattern = /`((?:backend|frontend|docs|\.github)\/[^`]+)`/g;
 
+// Paths the doc explicitly describes as gitignored/not part of the tracked
+// tree (e.g. a local build artifact) — checking existsSync on these would
+// just assert "did someone run a build locally", not doc accuracy.
+const KNOWN_GITIGNORED = new Set(["backend/dist/"]);
+
 const checked = new Set();
 for (const match of survey.matchAll(pathPattern)) {
   let candidate = match[1].split(":")[0]; // strip any trailing :line or :line-range
+  if (KNOWN_GITIGNORED.has(candidate)) continue;
 
   // Expand simple one-level brace lists, e.g. `routes/{mounts,scan}.ts` or
   // `lib/{auth,logger}.ts` — the common shorthand used throughout this doc.

@@ -149,6 +149,7 @@ jobs:
             -e PORT=3001 \
             -e LOG_LEVEL=info \
             -e ALLOWED_ORIGIN=http://localhost \
+            -e AUTHENTIK_ADMIN_GROUP=metawrangler-admins \
             -p 3001:3001 "$tag"
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3001/health > /dev/null 2>&1; then
