@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom'
 import { IconFilm } from '../icons'
 import { Nav } from './Nav'
 import { ThemeToggle } from './ThemeToggle'
+import { LocaleToggle } from './LocaleToggle'
 import './shell.css'
 
 export interface AppShellProps {
@@ -34,7 +35,10 @@ export function AppShell({ children }: AppShellProps): ReactNode {
             <span className="brand__name">MetaWrangler</span>
           </Link>
         </div>
-        <ThemeToggle />
+        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+          <LocaleToggle />
+          <ThemeToggle />
+        </div>
       </header>
 
       <Nav />
