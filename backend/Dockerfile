@@ -4,8 +4,9 @@ WORKDIR /app
 # Copy root monorepo lock file and backend workspace files
 COPY package.json package-lock.json ./
 COPY backend/package.json backend/bun.lock* ./backend/
-# Use npm ci with --omit=dev for production dependencies (consistent with CI)
-RUN npm ci --omit=dev --workspace=metawrangler-backend
+# Use bun to install (npm not available in bun base image)
+# For workspaces, we need both root and workspace lock files
+RUN bun install --frozen-lockfile --production
 
 # ── Stage 2: Runtime — Alpine + mkvtoolnix + ffmpeg ───────────────────────────
 FROM oven/bun:1.4-alpine
