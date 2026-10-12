@@ -10,5 +10,26 @@ export default defineConfig({
     env: {
       AUTHENTIK_ADMIN_GROUP: "admins",
     },
+    // Coverage configuration — measure branch, function, line, statement coverage
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html", "lcov"],
+      include: ["src/**/*.ts"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/**/__tests__/**",
+        "**/node_modules/**",
+        "dist/**",
+      ],
+      // Set thresholds for critical security/job/path-handling code
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 65,
+        statements: 70,
+      },
+      // Skip coverage for type-only files and generated code
+      skipFull: false,
+    },
   },
 });

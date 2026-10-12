@@ -61,9 +61,20 @@ jobsRouter.post("/", zValidator("json", createJobSchema), (c) => {
 });
 
 // GET /api/jobs — list recent jobs for this user
-jobsRouter.get("/", (c) => {
+const listJobsQuerySchema = z.object({
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(200)
+    .default(50)
+    .optional(),
+});
+
+jobsRouter.get("/", zValidator("query", listJobsQuerySchema), (c) => {
   const user = c.get("user");
-  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const query = c.req.valid("query");
+  const limit = query.limit ?? 50;
 
   const userJobs = db
     .select()
