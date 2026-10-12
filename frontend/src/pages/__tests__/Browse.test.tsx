@@ -67,8 +67,7 @@ describe("BrowsePage", () => {
       const headers = table.querySelectorAll("th[scope='col']");
       // Should have scope attribute on headers if table exists
       if (headers.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        expect(headers[0]!.getAttribute("scope")).toBe("col");
+        expect(headers[0].getAttribute("scope")).toBe("col");
       }
     });
   });

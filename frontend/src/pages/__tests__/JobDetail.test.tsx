@@ -3,8 +3,7 @@
  * Tests job monitoring, live updates, and undo workflow
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { JobDetailPage } from "../JobDetail";
@@ -69,8 +68,7 @@ describe("JobDetailPage", () => {
     tables.forEach((table) => {
       const headers = table.querySelectorAll("th[scope='col']");
       if (headers.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        expect(headers[0]!.getAttribute("scope")).toBe("col");
+        expect(headers[0].getAttribute("scope")).toBe("col");
       }
     });
   });

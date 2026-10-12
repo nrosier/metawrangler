@@ -21,14 +21,16 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
   const [mounted, setMounted] = useState(false);
 
-  // Initialize from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem(LOCALE_STORAGE_KEY) as Locale | null;
-    if (stored && (stored === "en" || stored === "es")) {
+  // Initialize from localStorage on mount (use derived state pattern)
+  const [prevMounted, setPrevMounted] = useState(false);
+  if (!prevMounted) {
+    setPrevMounted(true);
+    const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
+    if (stored === "en" || stored === "es") {
       setLocaleState(stored);
     }
     setMounted(true);
-  }, []);
+  }
 
   // Update localStorage and document lang when locale changes
   useEffect(() => {
@@ -43,7 +45,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   function t(key: keyof (typeof messages)["en"], ...args: unknown[]): string {
     const catalog = messages[locale];
-    const message = catalog[key as keyof typeof catalog];
+    const message = catalog[key];
 
     if (!message) {
       console.warn(`Missing translation key: ${String(key)}`);

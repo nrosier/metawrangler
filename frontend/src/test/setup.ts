@@ -15,7 +15,6 @@ afterEach(() => {
 });
 
 // Mock window.matchMedia for theme tests
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
@@ -37,7 +36,6 @@ const localStorageMock = {
   removeItem: vi.fn(),
   clear: vi.fn(),
 };
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 Object.defineProperty(window, "localStorage", {
   value: localStorageMock,
 });

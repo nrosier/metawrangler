@@ -134,10 +134,10 @@ jobs:
           docker build -t metawrangler-backend:test -f backend/Dockerfile backend/
           docker build -t metawrangler-frontend:test -f frontend/Dockerfile frontend/
 
-      # Start services via docker-compose
+      # Start services via docker compose
       - name: Start services
         run: |
-          docker-compose -f docker-compose.yml up -d
+          docker compose -f docker-compose.yml up -d
           # Wait for services to be ready
           timeout 60 bash -c 'until curl -fs http://localhost/health >/dev/null; do sleep 1; done'
 
@@ -157,7 +157,7 @@ jobs:
       # Cleanup
       - name: Stop services
         if: always()
-        run: docker-compose -f docker-compose.yml down
+        run: docker compose -f docker-compose.yml down
 
   secrets:
     name: Secret scan

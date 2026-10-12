@@ -44,7 +44,6 @@ describe("SettingsPage", () => {
 
   it("does not crash on render", () => {
     const { container } = renderWithProviders(<SettingsPage />);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     expect(container).toBeInTheDocument();
   });
 
@@ -68,8 +67,7 @@ describe("SettingsPage", () => {
     tables.forEach((table) => {
       const headers = table.querySelectorAll("th[scope='col']");
       if (headers.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        expect(headers[0]!.getAttribute("scope")).toBe("col");
+        expect(headers[0].getAttribute("scope")).toBe("col");
       }
     });
   });

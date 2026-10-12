@@ -7,9 +7,10 @@
  * DB integration tests are deferred (require Bun runtime); mocked tests
  * verify job/file record creation and state transitions.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
+import { describe, it, expect } from "vitest";
 import { detectConflicts, buildChangesSummary } from "../../shared/index.js";
-import type { EditOperation, ChangesSummary, BulkEditRequest } from "../../types/index.js";
+import type { EditOperation } from "../../types/index.js";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ describe("detectConflicts", () => {
       { field: "trackLanguage", trackSelector: { trackType: "audio", trackIndex: 0 }, value: "jpn" },
       { field: "trackLanguage", trackSelector: { trackType: "audio", trackIndex: 1 }, value: "deu" },
     ];
-    expect(detectConflicts(twoAudioMeta, ops)).toHaveLength(0);
+    expect(detectConflicts(twoAudioMeta as any, ops)).toHaveLength(0);
   });
 
   it("warns when track index exceeds available tracks", () => {
@@ -48,12 +49,12 @@ describe("detectConflicts", () => {
     const ops: EditOperation[] = [
       { field: "trackLanguage", trackSelector: { trackType: "audio", trackIndex: "*" }, value: "jpn" },
     ];
-    expect(detectConflicts(twoAudioMeta, ops)).toHaveLength(0);
+    expect(detectConflicts(twoAudioMeta as any, ops)).toHaveLength(0);
   });
 
   it("skips title ops (no trackSelector)", () => {
     const ops: EditOperation[] = [{ field: "title", value: "New Title" }];
-    expect(detectConflicts(twoAudioMeta, ops)).toHaveLength(0);
+    expect(detectConflicts(twoAudioMeta as any, ops)).toHaveLength(0);
   });
 
   it("skips ops with wildcard trackType", () => {
@@ -61,7 +62,7 @@ describe("detectConflicts", () => {
       { field: "trackFlagDefault", trackSelector: { trackType: "*", trackIndex: 0 }, value: true },
     ];
     // index 0 exists across all types
-    expect(detectConflicts(twoAudioMeta, ops)).toHaveLength(0);
+    expect(detectConflicts(twoAudioMeta as any, ops)).toHaveLength(0);
   });
 
   it("warns on subtitle track index out of range", () => {
@@ -87,7 +88,7 @@ describe("detectConflicts", () => {
 describe("buildChangesSummary", () => {
   it("captures before and after for a title change", () => {
     const ops: EditOperation[] = [{ field: "title", value: "New Title" }];
-    const summaries = buildChangesSummary(ops, twoAudioMeta);
+    const summaries = buildChangesSummary(ops, twoAudioMeta as any);
     expect(summaries).toHaveLength(1);
     expect(summaries[0]).toMatchObject({ field: "title", before: "Original Title", after: "New Title" });
   });
@@ -96,7 +97,7 @@ describe("buildChangesSummary", () => {
     const ops: EditOperation[] = [
       { field: "trackLanguage", trackSelector: { trackType: "audio", trackIndex: 0 }, value: "jpn" },
     ];
-    const summaries = buildChangesSummary(ops, twoAudioMeta);
+    const summaries = buildChangesSummary(ops, twoAudioMeta as any);
     expect(summaries).toHaveLength(1);
     expect(summaries[0]).toMatchObject({ field: "trackLanguage", before: "eng", after: "jpn" });
   });
@@ -105,7 +106,7 @@ describe("buildChangesSummary", () => {
     const ops: EditOperation[] = [
       { field: "trackLanguage", trackSelector: { trackType: "audio", trackIndex: "*" }, value: "und" },
     ];
-    const summaries = buildChangesSummary(ops, twoAudioMeta);
+    const summaries = buildChangesSummary(ops, twoAudioMeta as any);
     expect(summaries).toHaveLength(2); // 2 audio tracks
     expect(summaries.map((s) => s.before)).toEqual(["eng", "fra"]);
     expect(summaries.every((s) => s.after === "und")).toBe(true);
@@ -115,7 +116,7 @@ describe("buildChangesSummary", () => {
     const ops: EditOperation[] = [
       { field: "trackFlagDefault", trackSelector: { trackType: "audio", trackIndex: 1 }, value: true },
     ];
-    const summaries = buildChangesSummary(ops, twoAudioMeta);
+    const summaries = buildChangesSummary(ops, twoAudioMeta as any);
     expect(summaries[0]).toMatchObject({ field: "trackFlagDefault", before: false, after: true });
   });
 
@@ -123,7 +124,7 @@ describe("buildChangesSummary", () => {
     const ops: EditOperation[] = [
       { field: "trackLanguage", trackSelector: { trackType: "video", trackIndex: 0 }, value: "eng" },
     ];
-    const summaries = buildChangesSummary(ops, twoAudioMeta);
+    const summaries = buildChangesSummary(ops, twoAudioMeta as any);
     expect(summaries[0]?.before).toBeNull();
   });
 
@@ -147,7 +148,7 @@ describe("buildChangesSummary", () => {
       { field: "trackLanguage", trackSelector: { trackType: "audio", trackIndex: 0 }, value: "jpn" },
       { field: "trackName",     trackSelector: { trackType: "audio", trackIndex: 0 }, value: "Japanese DTS" },
     ];
-    const summaries = buildChangesSummary(ops, twoAudioMeta);
+    const summaries = buildChangesSummary(ops, twoAudioMeta as any);
     expect(summaries).toHaveLength(3);
     expect(summaries[0]?.field).toBe("title");
     expect(summaries[1]?.field).toBe("trackLanguage");

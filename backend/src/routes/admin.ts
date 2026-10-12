@@ -94,7 +94,7 @@ interface PurgeRequest {
  */
 adminRouter.post("/purge-old-records", requireAdmin, async (c) => {
   try {
-    const body = (await c.req.json()) as PurgeRequest;
+    const body = await c.req.json<PurgeRequest>();
     const dryRun = body.dryRun ?? true;
     const retentionDaysJobs = body.retentionDaysJobs ?? 90;
     const retentionDaysAudit = body.retentionDaysAudit ?? 180;

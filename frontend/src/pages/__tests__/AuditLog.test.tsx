@@ -51,8 +51,7 @@ describe("AuditLogPage", () => {
     tables.forEach((table) => {
       const headers = table.querySelectorAll("th[scope='col']");
       if (headers.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        expect(headers[0]!.getAttribute("scope")).toBe("col");
+        expect(headers[0].getAttribute("scope")).toBe("col");
       }
     });
   });
