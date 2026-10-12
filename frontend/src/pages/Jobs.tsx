@@ -5,12 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
+import { QueryError } from "@/components/QueryError";
 import { formatDate } from "@/lib/utils";
 import { IconChevronRight, IconList } from "@/icons";
 
 export function JobsPage() {
   const navigate = useNavigate();
-  const { data: jobs, isLoading } = useQuery({
+  const { data: jobs, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["jobs"],
     queryFn: () => api.jobs.list(100),
     refetchInterval: 5_000, // poll while any job is running
@@ -26,7 +27,8 @@ export function JobsPage() {
       </div>
 
       {isLoading && <p className="muted">Loading…</p>}
-      {!isLoading && (!jobs || jobs.length === 0) && <p className="muted">No jobs yet.</p>}
+      {isError && <QueryError error={error} onRetry={() => { void refetch(); }} />}
+      {!isLoading && !isError && (!jobs || jobs.length === 0) && <p className="muted">No jobs yet.</p>}
 
       {jobs && jobs.length > 0 && (
         <div className="table-scroll">

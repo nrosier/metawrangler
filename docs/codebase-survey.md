@@ -2,26 +2,38 @@
 
 Research pass over the existing implementation (built by IBM BOB from the original spec), done ahead of a modernization proposal. Findings only — no design opinions.
 
+> **Verified at:** commit `2e86b02`, 2026-10-12. The tree below and the
+> dependency/file claims throughout this doc were re-checked against the repo
+> at this commit (DOC-02) — re-run the same `rg --files` / `package.json`
+> check before trusting them again if much time has passed. Sections
+> describing git history (§10) are commit-history facts and don't go stale
+> the same way.
+
 ## 1. Overall structure
 
 Monorepo with a clean frontend/backend split, but no workspace tooling (no npm/pnpm workspaces, no Turborepo/Nx) — the two projects are independent and glued together only by `docker-compose.yml` and hand-mirrored types.
 
-Top level: `docker-compose.yml`, `.env.example`, `README.md`, `renovate.json`, `.github/workflows/{ci,docker}.yml`, `backend/`, `frontend/`.
+Top level: `docker-compose.yml`, `.env.example`, `README.md`, `CODEX_REVIEW.md`, `docs/codebase-survey.md`, `renovate.json`, `.github/workflows/{ci,docker}.yml`, `backend/`, `frontend/`.
 
 ```
 backend/src/
-  index.ts                 entry point
-  db/{index.ts,schema.ts}  Drizzle + bun:sqlite, inline migrations
-  lib/{auth.ts,logger.ts,pathSecurity.ts} + __tests__/
-  routes/{mounts,scan,jobs,audit,ws}.ts
+  index.ts                      entry point
+  db/{index.ts,schema.ts}       Drizzle + bun:sqlite, inline migrations
+  lib/{auth,logger,pathSecurity,toolConcurrency}.ts + __tests__/
+  routes/{mounts,scan,jobs,audit,ws}.ts + __tests__/
   services/{scanner,editor,jobRunner,audit}.ts + __tests__/
+  validation/editOperation.ts   zod schema, split out so it can be unit
+                                 tested without pulling in bun:sqlite
   types/index.ts
 
 frontend/src/
-  App.tsx, main.tsx, index.css
-  components/{Sidebar,StatusBadge,TrackList}.tsx
+  App.tsx, main.tsx, index.css, icons.tsx
+  components/{QueryError,StatusBadge,TrackList}.tsx
+  shell/{AppShell,Nav,ThemeToggle}.tsx + shell.css   — the actual nav, not
+                                                        "Sidebar.tsx"
+  theme/{ThemeContext,theme}.ts + {base,components,fonts,tokens}.css
   hooks/useJobSocket.ts
-  lib/{api.ts,utils.ts}
+  lib/{api,utils,draft}.ts
   pages/{Browse,BulkEdit,Jobs,JobDetail,Settings,AuditLog}.tsx
   types/index.ts
 ```
@@ -46,12 +58,16 @@ frontend/src/
 
 ## 3. Frontend
 
-- React 18 + TypeScript + Vite 6 (`tsc && vite build`).
+- React 19 + TypeScript + Vite 8 (`tsc && vite build`).
 - Routing: `react-router-dom` v7 — `/`, `/bulk-edit`, `/jobs`, `/jobs/:id`, `/settings`, `/audit`.
-- UI: no component library (no shadcn/MUI) — hand-rolled Tailwind v3 + `lucide-react` icons + `sonner` toasts + `clsx`/`tailwind-merge`.
+- UI: no component library (no shadcn/MUI) and **no Tailwind/lucide-react** —
+  hand-written CSS (`theme/{base,components,fonts,tokens}.css`, `shell/shell.css`)
+  and hand-written icon components (`frontend/src/icons.tsx`, plain inline
+  SVG), plus `sonner` toasts and `clsx` for conditional class names. There is
+  no `tailwind-merge` dependency.
 - State: `@tanstack/react-query` v5 for all server state; plain `useState` for local UI state (selection sets, forms). No Redux/Zustand.
-- Backend communication: REST via a thin `fetch` wrapper (`frontend/src/lib/api.ts`, `credentials: "include"`, `/api/*`); WebSocket for live job progress (`frontend/src/hooks/useJobSocket.ts`, `wss?://<host>/ws/jobs/:id`, `job_update`/`file_update`/`job_complete`/`error` messages merged into React Query cache).
-- **Likely-unused dependencies**: `react-hook-form` + `@hookform/resolvers` (forms actually use plain `useState`); `@tanstack/react-table` (tables are hand-written `<table>` markup). Worth a full grep before removing but they look like scaffold leftovers.
+- Backend communication: REST via a thin `fetch` wrapper (`frontend/src/lib/api.ts`, `credentials: "include"`, `/api/*`); WebSocket for live job progress (`frontend/src/hooks/useJobSocket.ts`, `wss?://<host>/ws/jobs/:id`, `job_update`/`file_update`/`job_complete`/`error` messages merged into React Query cache). A small `localStorage`-backed draft (`frontend/src/lib/draft.ts`) persists the in-progress bulk-edit selection/edits so a reload doesn't silently discard them.
+- The `react-hook-form`/`@hookform/resolvers`/`@tanstack/react-table` dependencies previously flagged here as likely-unused scaffold leftovers are gone — not in `frontend/package.json` as of the commit above.
 
 ## 4. Mountpoints / movies vs series
 
@@ -93,9 +109,9 @@ Exists and is fairly well-built, not missing:
 - `job_files` table stores `status` (`pending|running|success|failed|skipped`), `error_message`, `exit_code`, `changes_summary` per file. `jobRunner.ts` populates these as it goes and streams updates over WebSocket.
 - `frontend/src/pages/JobDetail.tsx` renders a per-file table with status icon/badge, an expandable row with raw `mkvpropedit` stderr + exit code on failure, a before→after diff, and track-conflict warnings.
 
-**Gaps found:**
-- Job-level status is muddled: `jobRunner.ts:169-179` computes `finalStatus = allFailed ? "failed" : anyFailed ? "done" : "done"` — a job with some failed and some successful files is marked `"done"`, indistinguishable from a fully-successful job at the job level. No "partially failed" status, no top-of-page summary banner ("3 of 10 files failed").
-- `undoJob()` silently skips files with no `snapshotBefore` or whose original status wasn't `"success"` (`jobRunner.ts:210-216`), with no UI indication of which files won't be undoable before the user clicks Undo.
+**Gaps found at the time of the original pass (now fixed, see below):**
+- ~~Job-level status is muddled... a job with some failed and some successful files is marked `"done"`...~~ Fixed: there is now a `"partial"` `JobStatus` distinct from `"done"`/`"failed"` (QUAL-03), surfaced via `StatusBadge`.
+- `undoJob()` still only offers undo for files with a `snapshotBefore` and an original `"success"` status — that part of the original finding stands; there's still no UI listing which specific files won't be undoable before the click.
 
 ## 9. Tests
 
@@ -106,8 +122,12 @@ Backend only — vitest, no frontend tests at all (no Vitest/Jest/RTL config in 
 - `backend/src/services/__tests__/scanner.test.ts` (143 lines) — real `isValidMkv`/`walkMkvFiles` against real temp files.
 - `backend/src/services/__tests__/editor.test.ts` (159 lines) — real `buildMkvpropeditArgs`.
 - `backend/src/services/__tests__/jobRunner.test.ts` (234 lines) — **does not test the real module**. The file's own header admits it re-implements `detectConflicts`/`buildChangesSummary` (private/unexported in `jobRunner.ts`) as copies inside the test file, then tests the copies. Zero coverage guarantee on the real logic — it would keep passing even if the real functions diverged during a refactor.
+- `backend/src/lib/__tests__/toolConcurrency.test.ts` — real `withToolSlot` semaphore, concurrency bound + release-on-throw.
+- `backend/src/routes/__tests__/jobs.schema.test.ts` — real `editOperationSchema` (extracted to `backend/src/validation/editOperation.ts` specifically so it's importable without `bun:sqlite`).
 
-No tests for `routes/*.ts` (the actual HTTP surface), no DB-migration tests, no integration/e2e tests. CI (`ci.yml`) runs backend `vitest run` + typecheck/lint/`npm audit` on both projects + a `gitleaks` scan. `docker.yml` builds images, runs a smoke test (health endpoint + security headers), runs Trivy, and pushes on tag.
+Partial exception to "no tests for `routes/*.ts`" above: `jobs.schema.test.ts` covers the validation schema used by `routes/jobs.ts`, not the route handler itself — the HTTP-handler-level gap (and the frontend-tests gap) still stands.
+
+No DB-migration tests, no integration/e2e tests. CI (`ci.yml`) runs backend `vitest run` + typecheck/lint/`npm audit` (production-tree, blocking, plus an informational full-tree audit) on both projects + a `gitleaks` scan. `docker.yml` builds images, runs a smoke test (health endpoint + security headers), runs Trivy, and pushes on tag.
 
 ## 10. Git history — what kept breaking
 
@@ -123,11 +143,24 @@ Young repo, 20 commits. Last 5, examined in detail:
 
 ## 11. Docs and staleness
 
-Only doc file is the root `README.md` (~140 lines) — no prior `/docs`, no ADRs, no in-repo copy of the original spec.
+As of this doc's own last verification (see the banner at the top), there
+are three doc files, not one: this survey (`docs/codebase-survey.md`),
+`CODEX_REVIEW.md` (an external audit, tracked via GitHub issues), and the
+root `README.md`. No ADRs, no in-repo copy of the original spec.
 
-Known-stale content:
-- README's "Stack" table still says `Node 22 + Hono` / `node:22-alpine`; actual runtime is Bun (`oven/bun:1.4-alpine`).
-- Comments reference **Caddy** (an earlier reverse-proxy choice, replaced by Traefik in `fbc1b04`) in some places but not others: `backend/src/routes/ws.ts:20` says Traefik, but `backend/src/lib/auth.ts:2` and `backend/src/index.ts:68` still say Caddy. `frontend/src/lib/api.ts:3` still says Caddy proxies `/api/*`, but it's nginx now.
+Known-stale content *as previously found, now resolved* (DOC-01/DOC-02):
+- README's "Stack" table said `Node 22 + Hono` / `node:22-alpine` and
+  `Tailwind CSS`; corrected to Bun (`oven/bun:1.4-alpine`) and hand-written
+  CSS, matching the actual Dockerfiles/`package.json`.
+- Comments referencing **Caddy** (an earlier reverse-proxy choice, replaced
+  by Traefik in `fbc1b04`) have been cleaned up — `frontend/src/lib/api.ts`
+  was the last straggler.
+- This doc previously claimed `components/Sidebar.tsx` existed and that the
+  UI used Tailwind v3 + `lucide-react` + `tailwind-merge` — none of that was
+  true even at the time this doc was last touched before the fix; corrected
+  above (§1, §3) to the real `shell/Nav.tsx` and the hand-written CSS/icons.
+
+Still-open tech debt:
 - `frontend/src/types/index.ts:1-4` self-documents as a manual mirror of `backend/src/types/index.ts` ("keep in sync manually or replace with a shared package") — acknowledged tech debt, no shared-types package exists.
 
 ## Reference: key files
@@ -137,9 +170,11 @@ Known-stale content:
 | Entry/runtime | `backend/src/index.ts`, `backend/Dockerfile`, `frontend/Dockerfile`, `frontend/nginx.conf`, `docker-compose.yml` |
 | MKV logic | `backend/src/services/scanner.ts`, `backend/src/services/editor.ts`, `backend/src/services/jobRunner.ts` |
 | DB | `backend/src/db/schema.ts`, `backend/src/db/index.ts` |
-| Auth/security | `backend/src/lib/auth.ts`, `backend/src/lib/pathSecurity.ts` |
+| Auth/security | `backend/src/lib/auth.ts`, `backend/src/lib/pathSecurity.ts`, `backend/src/lib/toolConcurrency.ts` |
+| Validation | `backend/src/validation/editOperation.ts` |
 | Routes | `backend/src/routes/{mounts,scan,jobs,audit,ws}.ts` |
-| Bulk-edit UI | `frontend/src/pages/Browse.tsx`, `frontend/src/pages/BulkEdit.tsx`, `frontend/src/pages/JobDetail.tsx` |
+| Nav/shell | `frontend/src/shell/{AppShell,Nav,ThemeToggle}.tsx` (not `components/Sidebar.tsx` — doesn't exist) |
+| Bulk-edit UI | `frontend/src/pages/Browse.tsx`, `frontend/src/pages/BulkEdit.tsx`, `frontend/src/pages/JobDetail.tsx`, `frontend/src/lib/draft.ts` |
 | Duplicated types | `backend/src/types/index.ts` vs `frontend/src/types/index.ts` |
 | Tests | `backend/src/**/__tests__/*.test.ts` (note: `jobRunner.test.ts` tests copied logic, not the real module) |
 | CI/CD | `.github/workflows/{ci,docker}.yml` |

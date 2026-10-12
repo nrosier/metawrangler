@@ -37,7 +37,8 @@
   "overrides": {
     "@esbuild-kit/core-utils": {
       "esbuild": "^0.28.2"
-    }
+    },
+    "source-map-js": "^1.2.2"
   },
   "trustedDependencies": []
 }

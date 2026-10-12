@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { IconAlertCircle, IconCheckCircle, IconHardDrive, IconPencil, IconPlus, IconTrash, IconXCircle } from "@/icons";
 import { api } from "@/lib/api";
+import { QueryError } from "@/components/QueryError";
 import type { Mount, MountType } from "@/types";
 
 export function SettingsPage() {
@@ -13,7 +14,7 @@ export function SettingsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [editMount, setEditMount] = useState<Mount | null>(null);
 
-  const { data: mounts, isLoading } = useQuery({
+  const { data: mounts, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["mounts"],
     queryFn: api.mounts.list,
     refetchInterval: 30_000,
@@ -79,7 +80,8 @@ export function SettingsPage() {
       )}
 
       {isLoading && <p className="muted">Loading…</p>}
-      {!isLoading && (!mounts || mounts.length === 0) && <p className="muted">No mounts configured.</p>}
+      {isError && <QueryError error={error} onRetry={() => { void refetch(); }} />}
+      {!isLoading && !isError && (!mounts || mounts.length === 0) && <p className="muted">No mounts configured.</p>}
       {mounts && mounts.length > 0 && (
         <div className="stack" style={{ gap: "var(--space-2)" }}>
           {mounts.map((m) => (

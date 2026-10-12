@@ -9,7 +9,7 @@ import { logger as honoLogger } from "hono/logger";
 import { runMigrations } from "./db/index.js";
 import { checkToolchain } from "./services/scanner.js";
 import { reconcileInterruptedJobs } from "./services/jobRunner.js";
-import { authMiddleware } from "./lib/auth.js";
+import { authMiddleware, assertAdminGroupConfigured } from "./lib/auth.js";
 import { logger } from "./lib/logger.js";
 import { mountsRouter } from "./routes/mounts.js";
 import { scanRouter } from "./routes/scan.js";
@@ -26,6 +26,15 @@ try {
   runMigrations();
 } catch (err) {
   logger.fatal({ err }, "Database migration failed — cannot start");
+  process.exit(1);
+}
+
+// Mount administration must be gated behind an explicit admin group (SEC-03)
+// — refuse to start rather than silently running with no admin concept.
+try {
+  assertAdminGroupConfigured();
+} catch (err) {
+  logger.fatal({ err }, "Admin group not configured — cannot start");
   process.exit(1);
 }
 

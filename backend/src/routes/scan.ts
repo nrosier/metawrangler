@@ -15,14 +15,14 @@ import { logger } from "../lib/logger.js";
 export const scanRouter = new Hono();
 
 // GET /api/scan/:mountId — list all MKV files in a mount
-scanRouter.get("/:mountId", (c) => {
+scanRouter.get("/:mountId", async (c) => {
   const user = c.get("user");
   const mountId = c.req.param("mountId");
 
   const mount = db.select().from(mounts).where(eq(mounts.id, mountId)).get();
   if (!mount) return c.json({ error: "Mount not found" }, 404);
 
-  const files = walkMkvFiles(mount.path);
+  const files = await walkMkvFiles(mount.path);
 
   writeAuditEntry({
     userId: user.uid,
@@ -54,7 +54,7 @@ scanRouter.get("/:mountId/list", zValidator("query", listSchema), async (c) => {
     return c.json({ error: "Invalid path" }, 403);
   }
 
-  const { directories, files } = listDirectory(safePath);
+  const { directories, files } = await listDirectory(safePath);
   return c.json({ mountId, path: safePath, directories, files });
 });
 
@@ -76,7 +76,7 @@ scanRouter.get("/:mountId/subdir", zValidator("query", subdirSchema), async (c) 
     return c.json({ error: "Invalid subdir path" }, 403);
   }
 
-  const files = walkMkvFiles(safePath);
+  const files = await walkMkvFiles(safePath);
   return c.json({ mountId, subdir: safePath, files });
 });
 

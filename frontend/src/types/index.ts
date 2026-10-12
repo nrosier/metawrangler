@@ -52,7 +52,7 @@ export interface BulkEditRequest {
   dryRun: boolean;
 }
 
-export type JobStatus = "pending" | "running" | "done" | "failed" | "cancelled";
+export type JobStatus = "pending" | "running" | "done" | "partial" | "failed" | "cancelled";
 export type FileStatus = "pending" | "running" | "success" | "failed" | "skipped";
 
 export interface Job {

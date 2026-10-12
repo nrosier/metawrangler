@@ -4,32 +4,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, or } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { jobs, jobFiles } from "../db/schema.js";
 import { createJob, undoJob } from "../services/jobRunner.js";
 import { logger } from "../lib/logger.js";
+import { editOperationSchema } from "../validation/editOperation.js";
 
 export const jobsRouter = new Hono();
-
-const editOperationSchema = z.object({
-  field: z.enum([
-    "title",
-    "trackLanguage",
-    "trackLanguageIETF",
-    "trackName",
-    "trackFlagDefault",
-    "trackFlagEnabled",
-    "trackFlagForced",
-  ]),
-  trackSelector: z
-    .object({
-      trackType: z.enum(["video", "audio", "subtitles", "unknown", "*"]),
-      trackIndex: z.union([z.number().int().min(0), z.literal("*")]),
-    })
-    .optional(),
-  value: z.union([z.string(), z.boolean()]),
-});
 
 const createJobSchema = z.object({
   filePaths: z.array(z.string().min(1)).min(1).max(500),
@@ -37,10 +19,36 @@ const createJobSchema = z.object({
   dryRun: z.boolean().default(false),
 });
 
+// Per-user cap on simultaneously active (pending/running) jobs. Each job
+// already runs its own files sequentially and shares the global tool-process
+// semaphore (see lib/toolConcurrency.ts), but with no cap at all a single
+// user could still queue up an unbounded number of jobs (PERF-02).
+const MAX_ACTIVE_JOBS_PER_USER = 3;
+
 // POST /api/jobs — create a new bulk edit job
 jobsRouter.post("/", zValidator("json", createJobSchema), (c) => {
   const user = c.get("user");
   const body = c.req.valid("json");
+
+  const activeJobCount = db
+    .select()
+    .from(jobs)
+    .where(
+      and(eq(jobs.userId, user.uid), or(eq(jobs.status, "pending"), eq(jobs.status, "running")))
+    )
+    .all().length;
+
+  if (activeJobCount >= MAX_ACTIVE_JOBS_PER_USER) {
+    c.header("Retry-After", "30");
+    return c.json(
+      {
+        error:
+          `You already have ${activeJobCount} active jobs (limit ${MAX_ACTIVE_JOBS_PER_USER}). ` +
+          "Wait for one to finish before starting another.",
+      },
+      429
+    );
+  }
 
   const jobId = createJob(user.uid, user.email, body);
 

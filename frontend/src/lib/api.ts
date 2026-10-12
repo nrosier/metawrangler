@@ -1,6 +1,6 @@
 /**
  * API client — thin wrappers around fetch.
- * All requests go to /api/* which Caddy proxies to the backend.
+ * All requests go to /api/* which the frontend's nginx proxies to the backend.
  */
 import type {
   Mount,
