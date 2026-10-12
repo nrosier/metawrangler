@@ -2,7 +2,7 @@
  * useJobSocket hook tests
  * Tests WebSocket subscription and event handling
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useJobSocket } from "../useJobSocket";
 
@@ -17,6 +17,10 @@ describe("useJobSocket", () => {
     const mockWebSocket = class {
       url: string;
       readyState: number = 1; // OPEN
+      onopen: ((ev: Event) => void) | null = null;
+      onmessage: ((ev: MessageEvent) => void) | null = null;
+      onerror: ((ev: Event) => void) | null = null;
+      onclose: ((ev: CloseEvent) => void) | null = null;
 
       constructor(url: string) {
         this.url = url;
@@ -45,7 +49,8 @@ describe("useJobSocket", () => {
       }
     };
 
-    global.WebSocket = mockWebSocket as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).WebSocket = mockWebSocket;
   });
 
   afterEach(() => {
@@ -65,49 +70,62 @@ describe("useJobSocket", () => {
     }
   });
 
-  it("returns initial pending status", () => {
+  it("returns initial disconnected state", () => {
     const { result } = renderHook(() => useJobSocket("test-job-123"));
 
-    expect(result.current.status).toBe("pending");
-    expect(Array.isArray(result.current.fileUpdates)).toBe(true);
+    expect(result.current.connected).toBe(false);
+    expect(result.current.job).toBeNull();
+    expect(result.current.files).toBeInstanceOf(Map);
   });
 
   it("handles job update messages", async () => {
     const { result } = renderHook(() => useJobSocket("test-job-123"));
 
-    const updateMessage = new MessageEvent("message", {
-      data: JSON.stringify({
-        type: "job_update",
-        status: "running",
-      }),
-    });
+    // Simulate WebSocket connection opening
+    if (wsInstance && (wsInstance as any).onopen) {
+      (wsInstance as any).onopen(new Event("open"));
+    }
 
-    if (listeners.message && listeners.message.length > 0) {
-      listeners.message[0](updateMessage);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mockJob: any = { id: "test-job-123", status: "running", totalFiles: 5, processedFiles: 2 };
+
+    if (wsInstance && (wsInstance as any).onmessage) {
+      (wsInstance as any).onmessage(
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            type: "job_update",
+            job: mockJob,
+          }),
+        })
+      );
     }
 
     await waitFor(() => {
-      expect(result.current.status).toBe("running");
+      expect(result.current.job).not.toBeNull();
+      expect(result.current.job?.status).toBe("running");
     });
   });
 
-  it("accumulates file updates in array", async () => {
+  it("accumulates file updates in map", async () => {
     const { result } = renderHook(() => useJobSocket("test-job-123"));
 
-    const fileUpdate = new MessageEvent("message", {
-      data: JSON.stringify({
-        type: "file_update",
-        filePath: "test.mkv",
-        status: "done",
-      }),
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mockFile: any = { id: "f1", jobId: "test-job-123", filePath: "test.mkv", status: "success" };
 
-    if (listeners.message && listeners.message.length > 0) {
-      listeners.message[0](fileUpdate);
+    if (wsInstance && (wsInstance as any).onmessage) {
+      (wsInstance as any).onmessage(
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            type: "file_update",
+            file: mockFile,
+          }),
+        })
+      );
     }
 
     await waitFor(() => {
-      expect(result.current.fileUpdates.length).toBeGreaterThan(0);
+      expect(result.current.files.size).toBeGreaterThan(0);
+      expect(result.current.files.get("test.mkv")).not.toBeUndefined();
     });
   });
 
@@ -116,8 +134,7 @@ describe("useJobSocket", () => {
 
     unmount();
 
-    // WebSocket should be closed or cleanup should have occurred
-    // This validates per-socket handler cleanup (ARCH-02 fix)
-    expect(listeners.message?.length || 0).toBeLessThanOrEqual(1);
+    // WebSocket should be closed after unmount
+    expect(wsInstance?.readyState).toBe(3); // 3 = CLOSED
   });
 });

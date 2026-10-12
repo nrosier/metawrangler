@@ -160,8 +160,8 @@ adminRouter.post("/purge-old-records", requireAdmin, async (c) => {
       action: "edit",
       detail: {
         event: "database_purge",
-        jobsDeleted,
-        auditDeleted,
+        jobsDeleted: jobsToDelete,
+        auditDeleted: auditToDelete,
         bytesFreed,
         retentionDaysJobs,
         retentionDaysAudit,
@@ -174,8 +174,8 @@ adminRouter.post("/purge-old-records", requireAdmin, async (c) => {
     );
 
     return c.json({
-      jobsDeleted,
-      auditDeleted,
+      jobsDeleted: jobsToDelete,
+      auditDeleted: auditToDelete,
       bytesFreed,
       dryRun: false,
       cutoffJobs,

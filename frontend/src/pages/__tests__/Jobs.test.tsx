@@ -51,7 +51,8 @@ describe("JobsPage", () => {
     tables.forEach((table) => {
       const headers = table.querySelectorAll("th[scope='col']");
       if (headers.length > 0) {
-        expect(headers[0].getAttribute("scope")).toBe("col");
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        expect(headers[0]!.getAttribute("scope")).toBe("col");
       }
     });
   });
