@@ -1,8 +1,8 @@
 # ── Stage 1: Install production dependencies ──────────────────────────────────
 FROM oven/bun:1.4-alpine AS deps
 WORKDIR /app
-# Copy backend workspace package and lock files only
-COPY backend/package.json backend/bun.lock* ./
+# When context=backend/, files in . are the backend directory
+COPY package.json bun.lock* ./
 # Install using bun (npm not available in bun base image)
 RUN bun install --frozen-lockfile --production
 
@@ -35,8 +35,8 @@ WORKDIR /app
 COPY --from=deps --chown=bun:bun /app/node_modules ./node_modules
 
 # Copy source — Bun runs TypeScript natively, no compile step needed
-COPY --chown=bun:bun backend/src ./src
-COPY --chown=bun:bun backend/package.json backend/tsconfig.json ./
+COPY --chown=bun:bun src ./src
+COPY --chown=bun:bun package.json tsconfig.json ./
 
 # Drop to non-root (bun user, uid 1000)
 USER bun
