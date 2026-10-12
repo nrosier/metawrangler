@@ -127,8 +127,11 @@ function MountForm({ title, initial, onSubmit, onCancel, loading, pathReadOnly }
       <p className="card__title" style={{ marginBottom: 0 }}>{title}</p>
       <div className="form-grid form-grid--3">
         <div className="field">
-          <label className="field__label">Display name</label>
+          <label className="field__label" htmlFor="mount-name">
+            Display name
+          </label>
           <input
+            id="mount-name"
             className="field__input"
             type="text"
             value={name}
@@ -138,8 +141,11 @@ function MountForm({ title, initial, onSubmit, onCancel, loading, pathReadOnly }
           />
         </div>
         <div className="field">
-          <label className="field__label">Container path</label>
+          <label className="field__label" htmlFor="mount-path">
+            Container path
+          </label>
           <input
+            id="mount-path"
             className="field__input"
             style={{ fontFamily: "var(--font-mono)" }}
             type="text"
@@ -151,8 +157,15 @@ function MountForm({ title, initial, onSubmit, onCancel, loading, pathReadOnly }
           />
         </div>
         <div className="field">
-          <label className="field__label">Type</label>
-          <select className="field__input" value={type} onChange={(e) => setType(e.target.value as MountType)}>
+          <label className="field__label" htmlFor="mount-type">
+            Type
+          </label>
+          <select
+            id="mount-type"
+            className="field__input"
+            value={type}
+            onChange={(e) => setType(e.target.value as MountType)}
+          >
             <option value="movies">Movies</option>
             <option value="series">Series</option>
           </select>

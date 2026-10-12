@@ -238,7 +238,7 @@ export function BrowsePage() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th className="table__cell--icon">
+                    <th className="table__cell--icon" scope="col">
                       <button
                         onClick={toggleAll}
                         className="button--icon button--sm button--quiet"
@@ -248,18 +248,38 @@ export function BrowsePage() {
                         <IconCheckbox state={allSelected ? "checked" : someSelected ? "indeterminate" : "unchecked"} />
                       </button>
                     </th>
-                    <th>File</th>
-                    <th className="table__cell--icon" />
+                    <th scope="col">File</th>
+                    <th className="table__cell--icon" scope="col" />
                   </tr>
                 </thead>
                 <tbody>
                   {filteredDirectories.map((d) => (
-                    <tr key={d} className="tr--clickable" onClick={() => navigateTo(d)}>
+                    <tr key={d}>
                       <td className="table__cell--icon" />
-                      <td>
-                        <div className="table__cell--name">
-                          <IconFolder className="icon--accent" /> {formatPath(d)}
-                        </div>
+                      <td style={{ padding: 0 }}>
+                        <button
+                          onClick={() => navigateTo(d)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "var(--space-1)",
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "var(--space-3) var(--space-4)",
+                            background: "none",
+                            border: "none",
+                            color: "inherit",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            fontSize: "inherit",
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--surface-hover)"}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                        >
+                          <div className="table__cell--name">
+                            <IconFolder className="icon--accent" /> {formatPath(d)}
+                          </div>
+                        </button>
                       </td>
                       <td>
                         <IconChevronRight className="table__chevron" />
@@ -268,10 +288,7 @@ export function BrowsePage() {
                   ))}
                   {filteredFiles.map((f) => (
                     <Fragment key={f}>
-                      <tr
-                        className={cn("tr--clickable", selectedFiles.has(f) && "tr--selected")}
-                        onClick={() => toggleFile(f)}
-                      >
+                      <tr className={cn(selectedFiles.has(f) && "tr--selected")}>
                         <td onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => toggleFile(f)}
@@ -284,19 +301,38 @@ export function BrowsePage() {
                             />
                           </button>
                         </td>
-                        <td>
-                          <div className="table__cell--name">{formatPath(f)}</div>
-                          <div className="table__cell--path">{f}</div>
+                        <td style={{ padding: 0 }}>
+                          <button
+                            onClick={() => toggleFile(f)}
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "var(--space-3) var(--space-4)",
+                              background: "none",
+                              border: "none",
+                              color: "inherit",
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              fontSize: "inherit",
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--surface-hover)"}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                          >
+                            <div className="table__cell--name">{formatPath(f)}</div>
+                            <div className="table__cell--path">{f}</div>
+                          </button>
                         </td>
-                        <td
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setExpandedFile(expandedFile === f ? null : f);
-                          }}
-                        >
-                          <IconChevronRight
-                            className={expandedFile === f ? "table__chevron table__chevron--open" : "table__chevron"}
-                          />
+                        <td>
+                          <button
+                            onClick={() => setExpandedFile(expandedFile === f ? null : f)}
+                            className="button--icon button--quiet"
+                            aria-label={expandedFile === f ? `Collapse details for ${formatPath(f)}` : `Expand details for ${formatPath(f)}`}
+                          >
+                            <IconChevronRight
+                              className={expandedFile === f ? "table__chevron table__chevron--open" : "table__chevron"}
+                            />
+                          </button>
                         </td>
                       </tr>
                       {expandedFile === f && (

@@ -52,29 +52,33 @@ export function AuditLogPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Action</th>
-                <th>User</th>
-                <th>Detail</th>
-                <th className="table__cell--icon" />
+                <th scope="col">Time</th>
+                <th scope="col">Action</th>
+                <th scope="col">User</th>
+                <th scope="col">Detail</th>
+                <th className="table__cell--icon" scope="col" />
               </tr>
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr
-                  key={e.id}
-                  className={e.jobId ? "tr--clickable" : undefined}
-                  onClick={() => {
-                    if (e.jobId) void navigate(`/jobs/${e.jobId}`);
-                  }}
-                >
+                <tr key={e.id}>
                   <td className="table__cell--muted">{formatDate(e.createdAt)}</td>
                   <td>
                     <span className={ACTION_BADGE[e.action] ?? "badge"}>{ACTION_LABELS[e.action] ?? e.action}</span>
                   </td>
                   <td className="table__cell--muted">{e.userEmail}</td>
                   <td className="table__cell--path">{e.detail ? JSON.stringify(e.detail).slice(0, 80) : "—"}</td>
-                  <td>{e.jobId && <IconChevronRight className="table__cell--muted" />}</td>
+                  <td>
+                    {e.jobId && (
+                      <button
+                        onClick={() => { void navigate(`/jobs/${e.jobId}`); }}
+                        className="button--icon button--quiet"
+                        aria-label={`View job details for ${ACTION_LABELS[e.action] ?? e.action} action`}
+                      >
+                        <IconChevronRight className="table__cell--muted" />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -35,16 +35,16 @@ export function JobsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Created</th>
-                <th>Status</th>
-                <th>Files</th>
-                <th>Type</th>
-                <th className="table__cell--icon" />
+                <th scope="col">Created</th>
+                <th scope="col">Status</th>
+                <th scope="col">Files</th>
+                <th scope="col">Type</th>
+                <th className="table__cell--icon" scope="col" />
               </tr>
             </thead>
             <tbody>
               {jobs.map((j) => (
-                <tr key={j.id} className="tr--clickable" onClick={() => { void navigate(`/jobs/${j.id}`); }}>
+                <tr key={j.id}>
                   <td className="table__cell--muted">{formatDate(j.createdAt)}</td>
                   <td>
                     <StatusBadge status={j.status} />
@@ -54,7 +54,13 @@ export function JobsPage() {
                   </td>
                   <td>{j.dryRun && <span className="badge badge--warn">dry-run</span>}</td>
                   <td>
-                    <IconChevronRight className="table__chevron" />
+                    <button
+                      onClick={() => { void navigate(`/jobs/${j.id}`); }}
+                      className="button--icon button--quiet"
+                      aria-label={`View details for job created ${formatDate(j.createdAt)}`}
+                    >
+                      <IconChevronRight className="table__chevron" />
+                    </button>
                   </td>
                 </tr>
               ))}

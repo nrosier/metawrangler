@@ -138,7 +138,14 @@ export function JobDetailPage() {
       </div>
 
       {(job.status === "running" || job.status === "pending") && (
-        <div className="progress">
+        <div
+          className="progress"
+          role="progressbar"
+          aria-valuenow={job.processedFiles}
+          aria-valuemin={0}
+          aria-valuemax={job.totalFiles}
+          aria-label={`Progress: ${job.processedFiles} of ${job.totalFiles} files processed`}
+        >
           <div className="progress__fill" style={{ width: `${progress}%` }} />
         </div>
       )}
@@ -160,10 +167,10 @@ export function JobDetailPage() {
         <table className="table">
           <thead>
             <tr>
-              <th className="table__cell--icon" />
-              <th>File</th>
-              <th>Status</th>
-              <th>Changes</th>
+              <th className="table__cell--icon" scope="col" />
+              <th scope="col">File</th>
+              <th scope="col">Status</th>
+              <th scope="col">Changes</th>
             </tr>
           </thead>
           <tbody>
