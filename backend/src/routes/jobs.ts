@@ -63,7 +63,10 @@ jobsRouter.get("/", (c) => {
     .where(eq(jobs.userId, user.uid))
     .orderBy(desc(jobs.createdAt))
     .limit(limit)
-    .all();
+    .all()
+    // operations is persisted for startup reconciliation (see jobRunner.ts),
+    // not part of the public Job shape — don't leak it into API responses.
+    .map((j) => ({ ...j, operations: undefined }));
 
   return c.json(userJobs);
 });
@@ -91,7 +94,7 @@ jobsRouter.get("/:id", (c) => {
       snapshotBefore: undefined,
     }));
 
-  return c.json({ ...job, files });
+  return c.json({ ...job, operations: undefined, files });
 });
 
 // POST /api/jobs/:id/undo — create an undo job for a completed edit job

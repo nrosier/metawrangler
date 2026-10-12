@@ -8,6 +8,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { logger as honoLogger } from "hono/logger";
 import { runMigrations } from "./db/index.js";
 import { checkToolchain } from "./services/scanner.js";
+import { reconcileInterruptedJobs } from "./services/jobRunner.js";
 import { authMiddleware } from "./lib/auth.js";
 import { logger } from "./lib/logger.js";
 import { mountsRouter } from "./routes/mounts.js";
@@ -26,6 +27,17 @@ try {
 } catch (err) {
   logger.fatal({ err }, "Database migration failed — cannot start");
   process.exit(1);
+}
+
+// Jobs run as fire-and-forget in-process promises with no worker/lease model
+// (see jobRunner.ts), so any job still "pending"/"running" from before this
+// process last stopped has nothing left that will ever finish it. Fail them
+// explicitly now rather than leaving them stuck forever with an unknown
+// on-disk file state and a frontend polling indefinitely.
+try {
+  reconcileInterruptedJobs();
+} catch (err) {
+  logger.error({ err }, "Startup job reconciliation failed — continuing anyway");
 }
 
 try {
@@ -65,7 +77,10 @@ app.get("/health", (c) =>
 // All API routes require valid Authentik headers
 app.use("/api/*", authMiddleware);
 
-// WebSocket — Caddy forward-auth validates before upgrade reaches us
+// WebSocket upgrades also require valid Authentik headers — the proxy forwards
+// the same headers on the upgrade request, but we must not rely on that alone
+// (comments claiming the proxy "already handles this" are not enforcement).
+app.use("/ws/*", authMiddleware);
 app.route("/ws", wsRouter);
 
 // API routes
