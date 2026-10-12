@@ -34,6 +34,8 @@ export const jobs = sqliteTable("jobs", {
   operations: text("operations"),
   totalFiles: integer("total_files").notNull().default(0),
   processedFiles: integer("processed_files").notNull().default(0),
+  /** Retention policy: keep snapshots for this many days (default 90) */
+  retentionDays: integer("retention_days").default(90),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -51,6 +53,8 @@ export const jobFiles = sqliteTable("job_files", {
   changesSummary: text("changes_summary"),
   /** JSON string: snapshot of metadata BEFORE the edit (used for undo) */
   snapshotBefore: text("snapshot_before"),
+  /** Size of snapshotBefore in bytes (informational, for storage monitoring) */
+  snapshotSizeBytes: integer("snapshot_size_bytes"),
   /** stderr / error message if failed */
   errorMessage: text("error_message"),
   /** mkvpropedit exit code */

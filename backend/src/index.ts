@@ -15,6 +15,7 @@ import { mountsRouter } from "./routes/mounts.js";
 import { scanRouter } from "./routes/scan.js";
 import { jobsRouter } from "./routes/jobs.js";
 import { auditRouter } from "./routes/audit.js";
+import { adminRouter } from "./routes/admin.js";
 import { wsRouter } from "./routes/ws.js";
 
 const PORT = Number(process.env["PORT"] ?? 3001);
@@ -97,6 +98,7 @@ app.route("/api/mounts", mountsRouter);
 app.route("/api/scan", scanRouter);
 app.route("/api/jobs", jobsRouter);
 app.route("/api/audit", auditRouter);
+app.route("/api/admin", adminRouter);
 
 // 404 handler
 app.notFound((c) => c.json({ error: "Not found" }, 404));
