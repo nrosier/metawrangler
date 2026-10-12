@@ -23,9 +23,11 @@ on:
   pull_request:
     paths:
       - backend/Dockerfile
-      - frontend/Dockerfile
+      - backend/src/**
       - backend/package.json
       - backend/package-lock.json
+      - frontend/Dockerfile
+      - frontend/src/**
       - frontend/package.json
       - frontend/package-lock.json
       - frontend/nginx.conf

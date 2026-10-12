@@ -82,6 +82,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Tests
+        run: npm test
+
       # A build that typechecks clean but fails to bundle is still broken.
       - name: Build
         run: npm run build
