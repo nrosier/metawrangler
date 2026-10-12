@@ -1,93 +1,12 @@
 /**
- * Tests for the internal jobRunner helpers detectConflicts and buildChangesSummary.
- * Both functions are unexported — we test them indirectly through a re-export shim,
- * or we can test them via the public API. For purity we extract them first.
- *
- * Because these are private functions in jobRunner.ts, we test the observable
- * behaviour by importing the module and calling the helpers through a thin
- * test-only export added via vitest's module mocking — or more simply, we just
- * duplicate the minimal function signatures here and test the logic directly.
- *
- * The cleanest approach without changing production code: extract the two pure
- * functions into a separate testable module. Since we can't change production
- * code just for tests, we instead test them by constructing the exact inputs
- * the job runner would pass and asserting the outputs match the documented
- * behaviour.
+ * Tests for the jobRunner helpers detectConflicts and buildChangesSummary.
+ * These functions are now exported from the shared module (backend/src/shared/index.ts)
+ * so they can be tested directly without duplication.
  */
 import { describe, it, expect } from "vitest";
+import { detectConflicts, buildChangesSummary } from "../../shared/index.js";
 
-// ── Inline the two pure helpers so we can test without exporting them ─────────
-// These are exact copies of the private functions in jobRunner.ts.
-// If the logic changes there, these must be kept in sync.
-
-import type { EditOperation } from "../../types/index.js";
-
-type TrackStub = { id: number; type: string };
-type MetaStub = { tracks: TrackStub[] };
-
-function detectConflicts(
-  metadata: MetaStub,
-  operations: EditOperation[]
-): string[] {
-  const warnings: string[] = [];
-  for (const op of operations) {
-    const sel = op.trackSelector;
-    if (!sel || sel.trackIndex === "*") continue;
-    const candidates = metadata.tracks.filter(
-      (t) => sel.trackType === "*" || t.type === sel.trackType
-    );
-    if (sel.trackIndex >= candidates.length) {
-      warnings.push(
-        `Track ${sel.trackType}[${sel.trackIndex}] does not exist in this file (has ${candidates.length} ${sel.trackType} track(s)). Operation '${op.field}' will be skipped for this file.`
-      );
-    }
-  }
-  return warnings;
-}
-
-type TrackMetaStub = {
-  id: number; type: string;
-  language: string | null; languageIETF: string | null;
-  name: string | null;
-  flagDefault: boolean; flagEnabled: boolean; flagForced: boolean;
-};
-type FullMetaStub = { title: string | null; tracks: TrackMetaStub[] };
-
-import type { ChangesSummary } from "../../types/index.js";
-
-function buildChangesSummary(
-  operations: EditOperation[],
-  metadata: FullMetaStub
-): ChangesSummary[] {
-  const summaries: ChangesSummary[] = [];
-  for (const op of operations) {
-    if (op.field === "title") {
-      summaries.push({ field: "title", before: metadata.title, after: op.value });
-      continue;
-    }
-    const sel = op.trackSelector;
-    if (!sel) continue;
-    const candidates = metadata.tracks.filter(
-      (t) => sel.trackType === "*" || t.type === sel.trackType
-    );
-    const targets =
-      sel.trackIndex === "*" ? candidates : [candidates[sel.trackIndex]].filter(Boolean);
-    for (const track of targets) {
-      if (!track) continue;
-      let before: string | boolean | null = null;
-      switch (op.field) {
-        case "trackLanguage": before = track.language; break;
-        case "trackLanguageIETF": before = track.languageIETF; break;
-        case "trackName": before = track.name; break;
-        case "trackFlagDefault": before = track.flagDefault; break;
-        case "trackFlagEnabled": before = track.flagEnabled; break;
-        case "trackFlagForced": before = track.flagForced; break;
-      }
-      summaries.push({ field: op.field, trackSelector: sel, before, after: op.value });
-    }
-  }
-  return summaries;
-}
+import type { EditOperation, ChangesSummary } from "../../types/index.js";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

@@ -487,9 +487,9 @@ async function runUndoJobFiles(
 // that were *absent* before an edit, via explicit nulls restorable with
 // `--delete` rather than only ever `--set`.
 
-const UNDO_SNAPSHOT_VERSION = 2;
+export const UNDO_SNAPSHOT_VERSION = 2;
 
-interface UndoSnapshotTrack {
+export interface UndoSnapshotTrack {
   id: number;
   language: string | null;
   languageIETF: string | null;
@@ -499,7 +499,7 @@ interface UndoSnapshotTrack {
   flagForced: boolean;
 }
 
-interface UndoSnapshot {
+export interface UndoSnapshot {
   schemaVersion: typeof UNDO_SNAPSHOT_VERSION;
   title: string | null;
   tracks: UndoSnapshotTrack[];
@@ -521,7 +521,7 @@ function buildUndoSnapshot(metadata: MkvFileMetadata): UndoSnapshot {
   };
 }
 
-function isUndoSnapshot(snapshot: unknown): snapshot is UndoSnapshot {
+export function isUndoSnapshot(snapshot: unknown): snapshot is UndoSnapshot {
   return (
     !!snapshot &&
     typeof snapshot === "object" &&
@@ -631,7 +631,7 @@ function buildRestoreArgsLegacy(filePath: string, snapshot: unknown): string[] {
 
 // ── Conflict detection ────────────────────────────────────────────────────────
 
-function detectConflicts(
+export function detectConflicts(
   metadata: { tracks: Array<{ id: number; type: string }> },
   operations: EditOperation[]
 ): string[] {
@@ -657,7 +657,7 @@ function detectConflicts(
 
 // ── Change summary builder ────────────────────────────────────────────────────
 
-function buildChangesSummary(
+export function buildChangesSummary(
   operations: EditOperation[],
   metadata: { title: string | null; tracks: Array<{ id: number; type: string; language: string | null; name: string | null; flagDefault: boolean; flagEnabled: boolean; flagForced: boolean; languageIETF: string | null }> }
 ): ChangesSummary[] {

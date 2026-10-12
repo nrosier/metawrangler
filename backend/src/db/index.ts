@@ -1,13 +1,18 @@
 /**
  * Database connection and migrations bootstrap
  * Uses Bun's built-in SQLite (bun:sqlite) — no native compilation required.
+ *
+ * Migrations are versioned SQL files in the ./drizzle/ directory.
+ * The database tracks applied versions in a schema_migrations table.
+ * New migrations are run in order, then marked as applied.
  */
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema.js";
-import { mkdirSync } from "fs";
+import { mkdirSync, readdirSync, readFileSync } from "fs";
 import path from "path";
 import { logger } from "../lib/logger.js";
+import { fileURLToPath } from "url";
 
 const DATA_DIR = process.env["DATA_DIR"] ?? "/app/data";
 mkdirSync(DATA_DIR, { recursive: true });
@@ -23,72 +28,96 @@ sqlite.exec("PRAGMA busy_timeout = 5000;");
 
 export const db = drizzle(sqlite, { schema });
 
-// ── Inline migrations (no migration runner needed for this schema size) ───────
+// ── Versioned migrations with tracking ────────────────────────────────────
 export function runMigrations(): void {
   logger.info({ db: DB_PATH }, "Running database migrations");
 
+  // Create schema_migrations table if it doesn't exist
   sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS mounts (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      path TEXT NOT NULL UNIQUE,
-      type TEXT NOT NULL CHECK(type IN ('movies','series')),
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS jobs (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      user_email TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      dry_run INTEGER NOT NULL DEFAULT 0,
-      total_files INTEGER NOT NULL DEFAULT 0,
-      processed_files INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS job_files (
-      id TEXT PRIMARY KEY,
-      job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-      file_path TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      changes_summary TEXT,
-      snapshot_before TEXT,
-      error_message TEXT,
-      exit_code INTEGER,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS audit_log (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      user_email TEXT NOT NULL,
-      action TEXT NOT NULL,
-      job_id TEXT,
-      detail TEXT,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id);
-    CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
-    CREATE INDEX IF NOT EXISTS idx_job_files_job ON job_files(job_id);
-    CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
-    CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version TEXT PRIMARY KEY,
+      applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
 
-  // Added after initial release: persists the operation payload a job was
-  // created to run, so a restarted backend can at least report *what* a
-  // stuck job was doing instead of only that it existed. bun:sqlite doesn't
-  // support `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so check manually.
-  const jobsColumns = sqlite
-    .query("SELECT name FROM pragma_table_info('jobs')")
-    .all() as Array<{ name: string }>;
-  if (!jobsColumns.some((c) => c.name === "operations")) {
-    sqlite.exec("ALTER TABLE jobs ADD COLUMN operations TEXT;");
+  // Get list of applied migrations
+  const appliedRows = sqlite
+    .query("SELECT version FROM schema_migrations ORDER BY version ASC")
+    .all() as Array<{ version: string }>;
+  const applied = new Set(appliedRows.map((row) => row.version));
+
+  // Find and run unapplied migrations
+  const migrationsDir = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../../drizzle"
+  );
+
+  // Ensure migrations directory exists
+  if (!readdirSync(migrationsDir, { withFileTypes: true }).length) {
+    logger.warn(
+      { dir: migrationsDir },
+      "No migrations found — assuming fresh setup"
+    );
   }
 
-  logger.info("Migrations complete");
+  const migrations = readdirSync(migrationsDir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+
+  for (const filename of migrations) {
+    const version = filename.replace(/\.sql$/, "");
+    if (applied.has(version)) {
+      logger.debug({ version }, "Migration already applied");
+      continue;
+    }
+
+    const migrationPath = path.join(migrationsDir, filename);
+    const sql = readFileSync(migrationPath, "utf8");
+
+    logger.info({ version, file: filename }, "Applying migration");
+
+    try {
+      // For migrations with conditional steps (like ALTER TABLE IF NOT EXISTS),
+      // split on semicolons and execute each statement individually to handle errors
+      const statements = sql
+        .split(";")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+      for (const statement of statements) {
+        try {
+          sqlite.exec(statement);
+        } catch (err) {
+          // Idempotent migrations may have safe failures (e.g., column already exists)
+          // Log but don't fail on "column already exists" or similar
+          if (
+            err instanceof Error &&
+            (err.message.includes("already exists") ||
+              err.message.includes("duplicate"))
+          ) {
+            logger.debug(
+              { version, error: err.message },
+              "Idempotent operation skipped"
+            );
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      // Mark migration as applied
+      sqlite.exec(
+        `INSERT INTO schema_migrations (version) VALUES ('${version}')`
+      );
+      logger.info({ version }, "Migration applied successfully");
+    } catch (err) {
+      logger.error(
+        { version, err, file: filename },
+        "Migration failed — cannot start"
+      );
+      process.exit(1);
+    }
+  }
+
+  logger.info({ applied: applied.size + migrations.length }, "Migrations complete");
 }
