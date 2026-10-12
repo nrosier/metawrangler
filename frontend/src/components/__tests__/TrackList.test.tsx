@@ -10,37 +10,38 @@ import type { MkvTrack } from "@/types";
 describe("TrackList", () => {
   const mockTracks: MkvTrack[] = [
     {
+      id: 0,
       type: "video",
-      trackNumber: 0,
-      codecID: "V_UNCOMPRESSED",
+      codecId: "V_UNCOMPRESSED",
       language: "eng",
-      default: true,
-      forced: false,
+      flagDefault: true,
+      flagForced: false,
+      flagEnabled: true,
     },
     {
+      id: 1,
       type: "audio",
-      trackNumber: 1,
-      codecID: "A_AAC",
+      codecId: "A_AAC",
       language: "eng",
-      default: true,
-      forced: false,
+      channels: 2,
+      flagDefault: true,
+      flagForced: false,
+      flagEnabled: true,
     },
     {
+      id: 2,
       type: "subtitles",
-      trackNumber: 2,
-      codecID: "S_TEXT/ASS",
+      codecId: "S_TEXT/ASS",
       language: "fra",
-      default: false,
-      forced: false,
+      flagDefault: false,
+      flagForced: false,
+      flagEnabled: true,
     },
   ];
 
-  it("renders track table with header", () => {
+  it("renders track list container", () => {
     const { container } = render(<TrackList tracks={mockTracks} />);
-    expect(screen.getByRole("table")).toBeInTheDocument();
-
-    const headers = container.querySelectorAll("thead th[scope='col']");
-    expect(headers.length).toBeGreaterThan(0);
+    expect(container.querySelector(".track-list")).toBeInTheDocument();
   });
 
   it("renders all tracks with correct type and codec", () => {
@@ -56,16 +57,25 @@ describe("TrackList", () => {
   it("displays language codes", () => {
     render(<TrackList tracks={mockTracks} />);
 
-    expect(screen.getByText("eng")).toBeInTheDocument();
-    expect(screen.getByText("fra")).toBeInTheDocument();
+    const engCodes = screen.queryAllByText("eng");
+    const fraCodes = screen.queryAllByText("fra");
+    expect(engCodes.length).toBeGreaterThan(0);
+    expect(fraCodes.length).toBeGreaterThan(0);
   });
 
   it("shows default and forced status", () => {
     render(<TrackList tracks={mockTracks} />);
 
-    // Check for visual indicators of default/forced status
-    const rows = screen.getAllByRole("row");
-    expect(rows.length).toBeGreaterThan(1); // header + 3 data rows
+    // Check for badges indicating default/forced status
+    const defaultBadges = screen.queryAllByText("default");
+    // First track has flagDefault: true, so "default" badge should exist
+    expect(defaultBadges.length).toBeGreaterThan(0);
+  });
+
+  it("renders track rows for each track", () => {
+    const { container } = render(<TrackList tracks={mockTracks} />);
+    const rows = container.querySelectorAll(".track-row");
+    expect(rows.length).toBe(3);
   });
 
   it("renders empty state when no tracks provided", () => {
