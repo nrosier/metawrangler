@@ -1,11 +1,11 @@
 # ── Stage 1: Install production dependencies ──────────────────────────────────
 FROM oven/bun:1.4-alpine AS deps
 WORKDIR /app
-# When context=root, copy root lock file + backend workspace
-COPY package.json package-lock.json ./
+# Copy root + backend workspace files for bun to understand structure
+COPY package.json ./
 COPY backend/package.json backend/bun.lock* ./backend/
-# Install using bun
-RUN bun install --frozen-lockfile --production
+# Install - let bun figure out production vs dev
+RUN cd backend && bun install
 
 # ── Stage 2: Runtime — Alpine + mkvtoolnix + ffmpeg ───────────────────────────
 FROM oven/bun:1.4-alpine
