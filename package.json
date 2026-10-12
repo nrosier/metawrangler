@@ -16,6 +16,6 @@
     "frontend"
   ],
   "devDependencies": {
-    "@playwright/test": "^1.45.0"
+    "@playwright/test": "^1.64.0"
   }
 }
