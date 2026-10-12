@@ -4,8 +4,12 @@ WORKDIR /app
 # Copy root + backend workspace files for bun to understand structure
 COPY package.json ./
 COPY backend/package.json backend/bun.lock* ./backend/
-# Install - let bun figure out production vs dev
-RUN cd backend && bun install
+# Install with verbose output for debugging
+RUN set -x && \
+    ls -la backend/ && \
+    cd backend && \
+    cat package.json && \
+    bun install --verbose 2>&1
 
 # ── Stage 2: Runtime — Alpine + mkvtoolnix + ffmpeg ───────────────────────────
 FROM oven/bun:1.4-alpine
