@@ -1,10 +1,13 @@
 # ── Stage 1: Build the React app ─────────────────────────────────────────────
 FROM node:24-alpine AS builder
 WORKDIR /app
-# Copy frontend workspace files (when context=frontend)
+# When context=root, copy root lock file + frontend workspace
 COPY package.json package-lock.json ./
-RUN npm ci
-COPY . .
+COPY frontend ./frontend
+# Install workspace dependencies
+RUN npm ci --workspace=metawrangler-frontend
+# Build frontend
+WORKDIR /app/frontend
 RUN npm run build
 
 # ── Stage 2: Serve with Nginx (Alpine) ───────────────────────────────────────
@@ -13,8 +16,8 @@ FROM nginx:1.31-alpine
 ARG GITHUB_SHA=unknown
 LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
 
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY --from=builder /app/frontend/dist /usr/share/nginx/html
+COPY frontend/nginx.conf /etc/nginx/nginx.conf
 
 # apk upgrade: picks up patched packages (openssl, libxml2, zlib, etc.) not
 # yet baked into the base image tag's cached layer.
