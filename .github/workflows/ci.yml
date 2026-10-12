@@ -43,8 +43,21 @@ jobs:
 
       # Checks the production dependency tree on every push/PR independently
       # of any image scanning — catches newly disclosed CVEs before they ship.
-      - name: Dependency audit
+      # This gate blocks the build: production code ships these dependencies.
+      - name: Dependency audit (production)
         run: npm audit --omit=dev --audit-level=high
+
+      # Dev-only tooling (vitest, eslint, etc.) never ships, so a high/critical
+      # finding here can't be exploited in production — but it can still mean
+      # a compromised or DoS-able local/CI toolchain, so surface it rather than
+      # silently relying on the production-only gate above to catch it later
+      # once something gets promoted to a runtime dependency. Policy: visible,
+      # non-blocking — don't fail CI on advisories we can't ship a fix for
+      # immediately; a human reviews and bumps/overrides on its own schedule.
+      - name: Dependency audit (full tree, informational)
+        if: always()
+        continue-on-error: true
+        run: npm audit --audit-level=high
 
   verify-frontend:
     name: Frontend — typecheck, lint, build, audit
@@ -73,8 +86,28 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Dependency audit
+      - name: Dependency audit (production)
         run: npm audit --omit=dev --audit-level=high
+
+      # See the matching step in verify-backend for the accept/fail policy.
+      - name: Dependency audit (full tree, informational)
+        if: always()
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+  docs:
+    name: Docs consistency check
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Catches the two concrete classes of doc rot this repo has hit before
+      # (DOC-01, DOC-02): README claiming the wrong container base image, and
+      # docs/codebase-survey.md referencing files that have since been
+      # renamed/removed. Doesn't catch stale prose generally — see the
+      # script's own header.
+      - name: Check README/survey against the actual Dockerfiles and file tree
+        run: node scripts/check-docs.mjs
 
   secrets:
     name: Secret scan

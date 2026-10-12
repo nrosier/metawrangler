@@ -12,6 +12,7 @@ import type {
   TrackType,
 } from "../types/index.js";
 import { logger } from "../lib/logger.js";
+import { withToolSlot } from "../lib/toolConcurrency.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -115,10 +116,12 @@ export async function runMkvpropedit(
   }
 
   try {
-    const { stdout, stderr } = await execFileAsync("mkvpropedit", args, {
-      timeout: 60_000,
-      maxBuffer: 5 * 1024 * 1024,
-    });
+    const { stdout, stderr } = await withToolSlot(() =>
+      execFileAsync("mkvpropedit", args, {
+        timeout: 60_000,
+        maxBuffer: 5 * 1024 * 1024,
+      })
+    );
     return { success: true, exitCode: 0, stdout, stderr, args };
   } catch (err: unknown) {
     const error = err as { stdout?: string; stderr?: string; code?: number };

@@ -9,7 +9,7 @@ Designed to drop into an existing **Traefik + Authentik + DockFlare** homelab st
 - Scan `.mkv` files and inspect all track metadata
 - Bulk-edit: File Title, Track Language (ISO 639-2 / BCP 47), Track Name, Default/Enabled/Forced flags
 - Dry-run mode: preview changes without writing
-- Undo: restore any completed job's files to their pre-edit state
+- Undo: restore a completed (or partially-successful) job's successfully-edited files to their pre-edit state — see [Undo](#undo) below for its real, current limits
 - Live job progress via WebSocket
 - Per-file results with exact error output from `mkvpropedit`
 - Track conflict detection: warns before applying ops to non-existent tracks
@@ -20,14 +20,14 @@ Designed to drop into an existing **Traefik + Authentik + DockFlare** homelab st
 
 | Layer | Technology |
 |---|---|
-| Backend | Node 22 + Hono + TypeScript |
-| Database | SQLite (via Drizzle ORM) |
-| Frontend | React 18 + TypeScript + Vite + Tailwind CSS |
+| Backend | Bun + Hono + TypeScript (runs `src/*.ts` directly, no compile step) |
+| Database | SQLite via `bun:sqlite` + Drizzle ORM |
+| Frontend | React 19 + TypeScript + Vite, hand-written CSS (no Tailwind/CSS framework) |
 | Reverse proxy | Traefik (external, existing stack) |
 | Auth | Authentik forward-auth via Traefik middleware |
 | MKV read | `mkvmerge -J` + `ffprobe` (fallback) |
 | MKV write | `mkvpropedit` (bundled in backend container) |
-| Container base | `node:22-alpine` (backend) · `nginx:1.27-alpine` (frontend) |
+| Container base | `oven/bun:1.4-alpine` (backend) · `nginx:1.31-alpine` (frontend) |
 
 ## Architecture
 
@@ -99,7 +99,7 @@ Open the app → **Settings** → **Add mount** — register the container paths
 - **Undo snapshots**: full `mkvmerge -J` JSON stored before every write
 - **Append-only audit log**: no update/delete endpoints on `audit_log`
 - **Structured logging** via Pino — sensitive fields auto-redacted
-- **Alpine base images** (`node:22-alpine`, `nginx:1.27-alpine`) — non-root, minimal attack surface
+- **Alpine base images** (`oven/bun:1.4-alpine`, `nginx:1.31-alpine`) — non-root, minimal attack surface
 
 ## Development
 
@@ -124,6 +124,17 @@ with tags `1.0.0`, `1.0`, `1`, and `latest`.
 
 ## Undo
 
-Every successful edit job stores a full `mkvmerge -J` snapshot of the original metadata.  
-Click **Undo** on any completed job to restore all files to their pre-edit state.  
-Undo itself creates a new job (which is also undoable).
+Every edit job stores a normalized before-snapshot (title + per-track language/name/flags, including
+fields that were *absent* before the edit) for each file it successfully changes. Click **Undo** on
+any `done` or `partial` job to restore those files to their pre-edit state; undo jobs themselves store
+their own before-snapshot too, so an undo job can itself be undone.
+
+Real limits, not guarantees beyond what the implementation can back up:
+
+- Only files whose own edit **succeeded** are undoable — `failed` and `skipped` files in the original
+  job have no snapshot to restore from, and are silently skipped by Undo (not currently called out
+  per-file in the UI before you click it).
+- Snapshots created before the current snapshot schema (schema version 2) fall back to a legacy,
+  set-only restore path: it can reproduce values but can't *remove* a field that didn't exist
+  originally, and if the stored shape can't be converted into restore operations at all, that file
+  is marked `skipped` with an explanation rather than silently left unchanged or incorrectly "restored".

@@ -5,11 +5,11 @@
  */
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { open } from "fs/promises";
-import { readdirSync, statSync } from "fs";
+import { open, opendir, stat, lstat } from "fs/promises";
 import path from "path";
 import type { MkvFileMetadata, MkvTrack, TrackType } from "../types/index.js";
 import { logger } from "../lib/logger.js";
+import { withToolSlot } from "../lib/toolConcurrency.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -42,40 +42,71 @@ export async function isValidMkv(filePath: string): Promise<boolean> {
 
 /**
  * Walk a directory and return all .mkv file paths (recursively).
+ *
+ * Async (opendir/lstat) rather than the old readdirSync/statSync, so a large
+ * library doesn't block the whole Bun event loop — including auth, the
+ * WebSocket, and every other in-flight API request — for the duration of
+ * the walk (PERF-01).
+ *
+ * Symlinks (file or directory) are never followed: a directory symlink
+ * cycle (self or parent link) would otherwise recurse until the stack or
+ * CPU is exhausted, and a followed file symlink could silently read
+ * something outside the registered mount.
  */
-export function walkMkvFiles(dirPath: string): string[] {
+export async function walkMkvFiles(dirPath: string): Promise<string[]> {
   const results: string[] = [];
+  await walkDirRecursive(dirPath, new Set(), results);
+  return results;
+}
 
-  function walk(dir: string): void {
-    let entries: string[];
-    try {
-      entries = readdirSync(dir);
-    } catch (err) {
-      logger.warn({ dir, err }, "Could not read directory, skipping");
-      return;
-    }
+async function walkDirRecursive(
+  dirPath: string,
+  visited: Set<string>,
+  results: string[]
+): Promise<void> {
+  // Identify this directory by (device, inode) rather than its path, so a
+  // symlink cycle that reaches the same directory via a different path is
+  // still caught.
+  let dirId: string;
+  try {
+    const s = await stat(dirPath);
+    dirId = `${s.dev}:${s.ino}`;
+  } catch (err) {
+    logger.warn({ dirPath, err }, "Could not stat directory, skipping");
+    return;
+  }
+  if (visited.has(dirId)) {
+    logger.warn({ dirPath }, "Skipping directory already visited in this scan (symlink cycle guard)");
+    return;
+  }
+  visited.add(dirId);
 
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry);
-      let s;
-      try {
-        s = statSync(fullPath);
-      } catch {
-        continue;
-      }
-      if (s.isDirectory()) {
-        walk(fullPath);
-      } else if (
-        s.isFile() &&
-        entry.toLowerCase().endsWith(".mkv")
-      ) {
-        results.push(fullPath);
-      }
-    }
+  let dir;
+  try {
+    dir = await opendir(dirPath);
+  } catch (err) {
+    logger.warn({ dirPath, err }, "Could not read directory, skipping");
+    return;
   }
 
-  walk(dirPath);
-  return results;
+  for await (const entry of dir) {
+    const fullPath = path.join(dirPath, entry.name);
+    let s;
+    try {
+      s = await lstat(fullPath);
+    } catch {
+      continue;
+    }
+    if (s.isSymbolicLink()) {
+      logger.warn({ fullPath }, "Skipping symlink during scan (not followed)");
+      continue;
+    }
+    if (s.isDirectory()) {
+      await walkDirRecursive(fullPath, visited, results);
+    } else if (s.isFile() && entry.name.toLowerCase().endsWith(".mkv")) {
+      results.push(fullPath);
+    }
+  }
 }
 
 export interface DirectoryListing {
@@ -87,29 +118,33 @@ export interface DirectoryListing {
  * List the immediate children of a directory: subdirectories and .mkv files,
  * without recursing. Used for directory-by-directory browsing.
  */
-export function listDirectory(dirPath: string): DirectoryListing {
+export async function listDirectory(dirPath: string): Promise<DirectoryListing> {
   const directories: string[] = [];
   const files: string[] = [];
 
-  let entries: string[];
+  let dir;
   try {
-    entries = readdirSync(dirPath);
+    dir = await opendir(dirPath);
   } catch (err) {
     logger.warn({ dirPath, err }, "Could not read directory, skipping");
     return { directories, files };
   }
 
-  for (const entry of entries) {
-    const fullPath = path.join(dirPath, entry);
+  for await (const entry of dir) {
+    const fullPath = path.join(dirPath, entry.name);
     let s;
     try {
-      s = statSync(fullPath);
+      s = await lstat(fullPath);
     } catch {
+      continue;
+    }
+    if (s.isSymbolicLink()) {
+      logger.warn({ fullPath }, "Skipping symlink during directory listing (not followed)");
       continue;
     }
     if (s.isDirectory()) {
       directories.push(fullPath);
-    } else if (s.isFile() && entry.toLowerCase().endsWith(".mkv")) {
+    } else if (s.isFile() && entry.name.toLowerCase().endsWith(".mkv")) {
       files.push(fullPath);
     }
   }
@@ -153,10 +188,12 @@ export async function scanFile(filePath: string): Promise<MkvFileMetadata> {
   let info: MkvmergeInfo;
 
   try {
-    const { stdout } = await execFileAsync("mkvmerge", ["-J", filePath], {
-      timeout: 30_000,
-      maxBuffer: 10 * 1024 * 1024, // 10 MB
-    });
+    const { stdout } = await withToolSlot(() =>
+      execFileAsync("mkvmerge", ["-J", filePath], {
+        timeout: 30_000,
+        maxBuffer: 10 * 1024 * 1024, // 10 MB
+      })
+    );
     rawJson = stdout;
     info = JSON.parse(stdout) as MkvmergeInfo;
   } catch (err) {
@@ -221,16 +258,18 @@ interface FfprobeOutput {
 }
 
 async function scanFileWithFfprobe(filePath: string): Promise<MkvFileMetadata> {
-  const { stdout } = await execFileAsync(
-    "ffprobe",
-    [
-      "-v", "quiet",
-      "-print_format", "json",
-      "-show_streams",
-      "-show_format",
-      filePath,
-    ],
-    { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }
+  const { stdout } = await withToolSlot(() =>
+    execFileAsync(
+      "ffprobe",
+      [
+        "-v", "quiet",
+        "-print_format", "json",
+        "-show_streams",
+        "-show_format",
+        filePath,
+      ],
+      { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }
+    )
   );
 
   const output = JSON.parse(stdout) as FfprobeOutput;

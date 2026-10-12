@@ -3,7 +3,7 @@
  * Both use the real filesystem via tmp directories — no mocks needed.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, writeFileSync, rmSync } from "fs";
+import { mkdirSync, writeFileSync, rmSync, symlinkSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { isValidMkv, walkMkvFiles } from "../scanner.js";
@@ -68,58 +68,58 @@ describe("isValidMkv", () => {
 // ── walkMkvFiles ──────────────────────────────────────────────────────────────
 
 describe("walkMkvFiles", () => {
-  it("finds .mkv files in the root directory", () => {
+  it("finds .mkv files in the root directory", async () => {
     mkfile("movie.mkv");
     mkfile("readme.txt");
-    const files = walkMkvFiles(tmpDir);
+    const files = await walkMkvFiles(tmpDir);
     expect(files).toHaveLength(1);
     expect(files[0]).toContain("movie.mkv");
   });
 
-  it("finds .mkv files recursively in subdirectories", () => {
+  it("finds .mkv files recursively in subdirectories", async () => {
     mkfile("Season 1/S01E01.mkv");
     mkfile("Season 1/S01E02.mkv");
     mkfile("Season 2/S02E01.mkv");
-    const files = walkMkvFiles(tmpDir);
+    const files = await walkMkvFiles(tmpDir);
     expect(files).toHaveLength(3);
   });
 
-  it("ignores non-.mkv files", () => {
+  it("ignores non-.mkv files", async () => {
     mkfile("movie.mkv");
     mkfile("movie.mp4");
     mkfile("movie.avi");
     mkfile("subtitles.srt");
-    const files = walkMkvFiles(tmpDir);
+    const files = await walkMkvFiles(tmpDir);
     expect(files).toHaveLength(1);
   });
 
-  it("is case-insensitive for the .mkv extension", () => {
+  it("is case-insensitive for the .mkv extension", async () => {
     mkfile("UPPER.MKV");
     mkfile("mixed.Mkv");
     mkfile("lower.mkv");
-    const files = walkMkvFiles(tmpDir);
+    const files = await walkMkvFiles(tmpDir);
     expect(files).toHaveLength(3);
   });
 
-  it("returns an empty array for a directory with no .mkv files", () => {
+  it("returns an empty array for a directory with no .mkv files", async () => {
     mkfile("notes.txt");
     mkfile("image.jpg");
-    expect(walkMkvFiles(tmpDir)).toHaveLength(0);
+    expect(await walkMkvFiles(tmpDir)).toHaveLength(0);
   });
 
-  it("returns an empty array for an empty directory", () => {
-    expect(walkMkvFiles(tmpDir)).toHaveLength(0);
+  it("returns an empty array for an empty directory", async () => {
+    expect(await walkMkvFiles(tmpDir)).toHaveLength(0);
   });
 
-  it("returns full absolute paths", () => {
+  it("returns full absolute paths", async () => {
     mkfile("sub/movie.mkv");
-    const files = walkMkvFiles(tmpDir);
+    const files = await walkMkvFiles(tmpDir);
     expect(path.isAbsolute(files[0]!)).toBe(true);
   });
 
-  it("handles deeply nested directories", () => {
+  it("handles deeply nested directories", async () => {
     mkfile("a/b/c/d/deep.mkv");
-    const files = walkMkvFiles(tmpDir);
+    const files = await walkMkvFiles(tmpDir);
     expect(files).toHaveLength(1);
     expect(files[0]).toContain("deep.mkv");
   });
@@ -133,11 +133,41 @@ describe("walkMkvFiles", () => {
     try {
       const { chmodSync } = await import("fs");
       chmodSync(unreadable, 0o000);
-      const files = walkMkvFiles(tmpDir);
+      const files = await walkMkvFiles(tmpDir);
       expect(files).toHaveLength(1); // still finds the readable one
       chmodSync(unreadable, 0o755); // restore so cleanup works
     } catch {
       // chmod not supported or running as root — skip
     }
+  });
+
+  it("does not follow a directory symlink that creates a cycle (PERF-01)", async () => {
+    mkfile("real/movie.mkv");
+    // Self-referential symlink: real/loop -> tmpDir's "real" directory itself
+    symlinkSync(path.join(tmpDir, "real"), path.join(tmpDir, "real", "loop"), "dir");
+
+    const files = await walkMkvFiles(tmpDir);
+    // Must terminate and still find the one real file, without infinitely
+    // recursing into real/loop -> real/loop -> ...
+    expect(files).toHaveLength(1);
+    expect(files[0]).toContain("movie.mkv");
+  });
+
+  it("does not follow a parent-pointing directory symlink cycle", async () => {
+    mkfile("a/b/movie.mkv");
+    // a/b/up -> a (a cycle one level up, not just self-referential)
+    symlinkSync(path.join(tmpDir, "a"), path.join(tmpDir, "a", "b", "up"), "dir");
+
+    const files = await walkMkvFiles(tmpDir);
+    expect(files).toHaveLength(1);
+  });
+
+  it("skips a file that is itself a symlink", async () => {
+    mkfile("real.mkv");
+    symlinkSync(path.join(tmpDir, "real.mkv"), path.join(tmpDir, "link.mkv"));
+
+    const files = await walkMkvFiles(tmpDir);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toContain("real.mkv");
   });
 });

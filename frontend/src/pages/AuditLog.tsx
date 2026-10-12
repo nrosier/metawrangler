@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { IconChevronRight, IconClipboard } from "@/icons";
 import { api } from "@/lib/api";
+import { QueryError } from "@/components/QueryError";
 import { formatDate } from "@/lib/utils";
 import type { AuditAction } from "@/types";
 
@@ -28,7 +29,7 @@ const ACTION_BADGE: Record<AuditAction, string> = {
 
 export function AuditLogPage() {
   const navigate = useNavigate();
-  const { data: entries, isLoading } = useQuery({
+  const { data: entries, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["audit"],
     queryFn: () => api.audit.list(200),
   });
@@ -43,7 +44,8 @@ export function AuditLogPage() {
       </div>
 
       {isLoading && <p className="muted">Loading…</p>}
-      {!isLoading && (!entries || entries.length === 0) && <p className="muted">No audit entries yet.</p>}
+      {isError && <QueryError error={error} onRetry={() => { void refetch(); }} />}
+      {!isLoading && !isError && (!entries || entries.length === 0) && <p className="muted">No audit entries yet.</p>}
 
       {entries && entries.length > 0 && (
         <div className="table-scroll">

@@ -12,8 +12,26 @@ import { writeAuditEntry } from "../services/audit.js";
 import { walkMkvFiles } from "../services/scanner.js";
 import { stat, access, constants } from "fs/promises";
 import { logger } from "../lib/logger.js";
+import { requireAdmin } from "../lib/auth.js";
 
 export const mountsRouter = new Hono();
+
+// GET /api/mounts is polled by the frontend every 30s (Settings.tsx) purely
+// to refresh health/counts. walkMkvFiles is now async rather than blocking
+// (PERF-01), but a large library is still real I/O work, so cache the count
+// briefly rather than re-walking the whole tree on every poll.
+const MKV_COUNT_CACHE_TTL_MS = 60_000;
+const mkvCountCache = new Map<string, { count: number; expiresAt: number }>();
+
+async function getCachedMkvCount(mountPath: string): Promise<number> {
+  const cached = mkvCountCache.get(mountPath);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached.count;
+
+  const count = (await walkMkvFiles(mountPath)).length;
+  mkvCountCache.set(mountPath, { count, expiresAt: now + MKV_COUNT_CACHE_TTL_MS });
+  return count;
+}
 
 const createMountSchema = z.object({
   name: z.string().min(1).max(100),
@@ -44,7 +62,7 @@ mountsRouter.get("/", async (c) => {
 
       if (reachable) {
         try {
-          mkvCount = walkMkvFiles(m.path).length;
+          mkvCount = await getCachedMkvCount(m.path);
         } catch {
           // ignore count errors
         }
@@ -57,8 +75,12 @@ mountsRouter.get("/", async (c) => {
   return c.json(withHealth);
 });
 
+// Mutating mount routes affect every user's edit boundary, not just the
+// caller's — gate them to admins (SEC-03). Listing/health stays open to any
+// authenticated user, same as the rest of the app.
+
 // POST /api/mounts — add a new mount
-mountsRouter.post("/", zValidator("json", createMountSchema), async (c) => {
+mountsRouter.post("/", requireAdmin, zValidator("json", createMountSchema), async (c) => {
   const user = c.get("user");
   const body = c.req.valid("json");
 
@@ -99,7 +121,7 @@ mountsRouter.post("/", zValidator("json", createMountSchema), async (c) => {
 });
 
 // PATCH /api/mounts/:id — update name, type, or path
-mountsRouter.patch("/:id", zValidator("json", updateMountSchema), async (c) => {
+mountsRouter.patch("/:id", requireAdmin, zValidator("json", updateMountSchema), async (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
   const body = c.req.valid("json");
@@ -136,7 +158,7 @@ mountsRouter.patch("/:id", zValidator("json", updateMountSchema), async (c) => {
 });
 
 // DELETE /api/mounts/:id
-mountsRouter.delete("/:id", (c) => {
+mountsRouter.delete("/:id", requireAdmin, (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
 

@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
-import { authMiddleware } from "../auth.js";
+import { authMiddleware, requireAdmin, assertAdminGroupConfigured } from "../auth.js";
 
 // Silence logger output during tests
 vi.mock("../logger.js", () => ({
@@ -16,8 +16,15 @@ function buildApp() {
   app.use("*", authMiddleware);
   app.get("/test", (c) => {
     const user = c.get("user");
-    return c.json({ uid: user.uid, email: user.email });
+    return c.json({ uid: user.uid, email: user.email, isAdmin: user.isAdmin });
   });
+  return app;
+}
+
+function buildAdminApp() {
+  const app = new Hono();
+  app.use("*", authMiddleware);
+  app.get("/admin-only", requireAdmin, (c) => c.json({ ok: true }));
   return app;
 }
 
@@ -84,5 +91,74 @@ describe("authMiddleware", () => {
     expect(res.status).toBe(200);
     const body = await res.json() as { uid: string; email: string };
     expect(body.uid).toBe("user-456");
+  });
+
+  it("sets isAdmin: false when the groups header is absent", async () => {
+    const res = await request(app, {
+      "x-authentik-uid": "user-123",
+      "x-authentik-email": "user@example.com",
+    });
+    const body = await res.json() as { isAdmin: boolean };
+    expect(body.isAdmin).toBe(false);
+  });
+
+  it("sets isAdmin: false when groups header doesn't include the admin group", async () => {
+    const res = await request(app, {
+      "x-authentik-uid": "user-123",
+      "x-authentik-email": "user@example.com",
+      "x-authentik-groups": "viewers,editors",
+    });
+    const body = await res.json() as { isAdmin: boolean };
+    expect(body.isAdmin).toBe(false);
+  });
+
+  it("sets isAdmin: true when groups header includes the configured admin group (comma-delimited)", async () => {
+    const res = await request(app, {
+      "x-authentik-uid": "user-123",
+      "x-authentik-email": "user@example.com",
+      "x-authentik-groups": "viewers,admins",
+    });
+    const body = await res.json() as { isAdmin: boolean };
+    expect(body.isAdmin).toBe(true);
+  });
+
+  it("sets isAdmin: true when groups header includes the configured admin group (pipe-delimited)", async () => {
+    const res = await request(app, {
+      "x-authentik-uid": "user-123",
+      "x-authentik-email": "user@example.com",
+      "x-authentik-groups": "viewers|admins",
+    });
+    const body = await res.json() as { isAdmin: boolean };
+    expect(body.isAdmin).toBe(true);
+  });
+});
+
+describe("requireAdmin", () => {
+  it("returns 403 for an authenticated non-admin user", async () => {
+    const app = buildAdminApp();
+    const res = await app.request("/admin-only", {
+      headers: { "x-authentik-uid": "user-123", "x-authentik-email": "user@example.com" },
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json() as { error: string };
+    expect(body.error).toBe("Forbidden");
+  });
+
+  it("allows an admin user through", async () => {
+    const app = buildAdminApp();
+    const res = await app.request("/admin-only", {
+      headers: {
+        "x-authentik-uid": "user-123",
+        "x-authentik-email": "user@example.com",
+        "x-authentik-groups": "admins",
+      },
+    });
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("assertAdminGroupConfigured", () => {
+  it("does not throw when AUTHENTIK_ADMIN_GROUP is set (as configured for this test run)", () => {
+    expect(() => assertAdminGroupConfigured()).not.toThrow();
   });
 });

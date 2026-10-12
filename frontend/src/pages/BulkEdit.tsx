@@ -4,17 +4,26 @@
  * metadata. No ad hoc operation builder: every field that can be changed is
  * always shown, and only fields the user actually touches become operations.
  */
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconAlertTriangle, IconChevronLeft, IconFlask, IconPencil } from "@/icons";
+import { IconAlertTriangle, IconChevronLeft, IconClock, IconFlask, IconPencil, IconXCircle } from "@/icons";
 import { api } from "@/lib/api";
+import { QueryError } from "@/components/QueryError";
+import { clearDraft, loadDraft, saveDraft } from "@/lib/draft";
+import { formatDate } from "@/lib/utils";
 import type { EditOperation, EditableField, MkvTrack, TrackType } from "@/types";
 
 type LocationState = { filePaths: string[] } | null;
 
 const ISO_639_2 = /^[a-z]{3}$/;
+
+// Must match the backend's own `fileMetaSchema`/`createJobSchema` cap
+// (backend/src/routes/scan.ts, backend/src/routes/jobs.ts) — previously the
+// frontend's own query was disabled above 100 with no message at all, even
+// though the backend already accepted up to this many (UX-03).
+const MAX_FILES_PER_BATCH = 500;
 
 interface Aggregate<T> {
   same: boolean;
@@ -120,20 +129,63 @@ export function BulkEditPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const state = location.state as LocationState;
-  const filePaths = state?.filePaths ?? [];
 
-  const [edits, setEdits] = useState<Record<string, string | boolean>>({});
-  const [dryRun, setDryRun] = useState(false);
+  // A fresh navigation from Browse (real router state) always wins over a
+  // leftover draft — only fall back to the draft when there's no state at
+  // all, i.e. a reload, direct link, or restored tab (LOCAL-02).
+  const [draft, setDraft] = useState(() =>
+    state?.filePaths && state.filePaths.length > 0 ? null : loadDraft()
+  );
+  const [draftDiscarded, setDraftDiscarded] = useState(false);
 
-  const { data: metaResults, isLoading: metaLoading } = useQuery({
-    queryKey: ["meta-bulk", filePaths],
-    queryFn: () => api.scan.getMetadata(filePaths),
-    enabled: filePaths.length > 0 && filePaths.length <= 100,
+  const filePaths = useMemo(
+    () => (draftDiscarded ? [] : state?.filePaths ?? draft?.filePaths ?? []),
+    [draftDiscarded, state?.filePaths, draft?.filePaths]
+  );
+
+  const [edits, setEdits] = useState<Record<string, string | boolean>>(() => draft?.edits ?? {});
+  const [dryRun, setDryRun] = useState(() => draft?.dryRun ?? false);
+  // Files the user has explicitly removed after a failed preview scan — see
+  // the "failed to scan" panel below (UX-03).
+  const [excludedPaths, setExcludedPaths] = useState<Set<string>>(new Set());
+
+  function discardDraft() {
+    clearDraft();
+    setDraft(null);
+    setDraftDiscarded(true);
+  }
+
+  // Persist on every change so a reload/crash never loses more than whatever
+  // happened between this render and the last one. Re-scanning a restored
+  // draft's files (below, via the existing meta-bulk query) is what keeps a
+  // stale draft honest — this alone doesn't claim the saved edits are still
+  // valid against current file state.
+  useEffect(() => {
+    if (filePaths.length === 0) return;
+    saveDraft({ filePaths, edits, dryRun });
+  }, [filePaths, edits, dryRun]);
+
+  const overLimit = filePaths.length > MAX_FILES_PER_BATCH;
+  const activeFilePaths = filePaths.filter((p) => !excludedPaths.has(p));
+
+  const {
+    data: metaResults,
+    isLoading: metaLoading,
+    isError: metaIsError,
+    error: metaError,
+    refetch: refetchMeta,
+  } = useQuery({
+    queryKey: ["meta-bulk", activeFilePaths],
+    queryFn: () => api.scan.getMetadata(activeFilePaths),
+    enabled: activeFilePaths.length > 0 && !overLimit,
   });
 
   const createJob = useMutation({
     mutationFn: api.jobs.create,
     onSuccess: ({ jobId }) => {
+      // The job now owns these changes — a leftover draft would just be
+      // confusing (or get silently re-applied) the next time this page loads.
+      clearDraft();
       toast.success(dryRun ? "Dry-run job started" : "Edit job started");
       void navigate(`/jobs/${jobId}`);
     },
@@ -146,6 +198,21 @@ export function BulkEditPage() {
     return (
       <div className="stack" style={{ textAlign: "center" }}>
         <p className="muted">No files selected.</p>
+        <button className="button button--quiet" onClick={() => { void navigate("/"); }}>
+          <IconChevronLeft /> Back to Browse
+        </button>
+      </div>
+    );
+  }
+
+  if (overLimit) {
+    return (
+      <div className="stack" style={{ textAlign: "center" }}>
+        <p className="notice notice--warn">
+          <IconAlertTriangle /> {filePaths.length} files selected, but a single bulk edit is limited
+          to {MAX_FILES_PER_BATCH}. Go back and select {MAX_FILES_PER_BATCH} or fewer, or split this
+          into multiple batches.
+        </p>
         <button className="button button--quiet" onClick={() => { void navigate("/"); }}>
           <IconChevronLeft /> Back to Browse
         </button>
@@ -171,6 +238,9 @@ export function BulkEditPage() {
     });
   }
 
+  const failedResults = (metaResults ?? []).filter((r) => !r.metadata);
+  const scannedPaths = (metaResults ?? []).filter((r) => r.metadata).map((r) => r.filePath);
+
   function handleSubmit() {
     const operations: EditOperation[] = Object.entries(edits).map(([key, value]) => {
       if (key === "title") return { field: "title", value };
@@ -195,7 +265,18 @@ export function BulkEditPage() {
       return;
     }
 
-    createJob.mutate({ filePaths, operations, dryRun });
+    if (failedResults.length > 0) {
+      // Belt-and-suspenders: the submit button is already disabled while
+      // this is true, but never submit against files the preview never
+      // actually confirmed metadata for (UX-03).
+      toast.error("Remove or retry the files that failed to scan before applying.");
+      return;
+    }
+
+    // Submit exactly the files the preview actually succeeded on — not the
+    // original selection — so an edit inferred from a partial preview can
+    // never be applied to a file the user never previewed (UX-03).
+    createJob.mutate({ filePaths: scannedPaths, operations, dryRun });
   }
 
   const filesMeta = (metaResults ?? []).filter((r) => r.metadata).map((r) => r.metadata!);
@@ -233,6 +314,19 @@ export function BulkEditPage() {
         </span>
       </div>
 
+      {draft && !draftDiscarded && (
+        <div className="notice notice--warn">
+          <p className="notice__lead">
+            <IconClock />
+            Restored an unsaved draft from {formatDate(draft.savedAt)} — files are being
+            re-scanned below to confirm they still match before you apply anything.
+          </p>
+          <button className="button button--quiet" onClick={discardDraft}>
+            Discard draft
+          </button>
+        </div>
+      )}
+
       <section className="card card--sunken">
         <p className="section-label">Selected files</p>
         <ul className="file-list">
@@ -245,6 +339,36 @@ export function BulkEditPage() {
       </section>
 
       {metaLoading && <p className="muted">Loading current metadata…</p>}
+      {metaIsError && <QueryError error={metaError} onRetry={() => { void refetchMeta(); }} />}
+
+      {failedResults.length > 0 && (
+        <div className="notice notice--error">
+          <p className="notice__lead">
+            <IconXCircle />
+            {failedResults.length} file{failedResults.length !== 1 ? "s" : ""} failed to scan — remove
+            them or retry before applying
+          </p>
+          <ul className="notice__list">
+            {failedResults.map((r) => (
+              <li key={r.filePath} className="toolbar" style={{ justifyContent: "space-between" }}>
+                <span className="table__cell--path">{r.filePath}</span>
+                <span className="toolbar" style={{ gap: "var(--space-2)" }}>
+                  {r.error && <span className="muted" style={{ fontSize: "var(--type-xs)" }}>{r.error}</span>}
+                  <button
+                    className="button button--quiet button--sm"
+                    onClick={() => setExcludedPaths((prev) => new Set(prev).add(r.filePath))}
+                  >
+                    Remove
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <button className="button button--quiet" onClick={() => { void refetchMeta(); }}>
+            Retry scan
+          </button>
+        </div>
+      )}
 
       {availabilityNotes.length > 0 && (
         <div className="notice notice--warn">
@@ -372,7 +496,8 @@ export function BulkEditPage() {
         <button
           className={dryRun ? "button button--quiet" : "button"}
           onClick={handleSubmit}
-          disabled={createJob.isPending}
+          disabled={createJob.isPending || failedResults.length > 0 || scannedPaths.length === 0}
+          title={failedResults.length > 0 ? "Remove or retry the failed files above first" : undefined}
         >
           {dryRun ? (
             <>
@@ -380,7 +505,7 @@ export function BulkEditPage() {
             </>
           ) : (
             <>
-              <IconPencil /> Apply to {filePaths.length} file{filePaths.length !== 1 ? "s" : ""}
+              <IconPencil /> Apply to {scannedPaths.length} file{scannedPaths.length !== 1 ? "s" : ""}
             </>
           )}
         </button>

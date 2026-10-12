@@ -66,7 +66,10 @@ export interface BulkEditRequest {
 
 // ── Job types ─────────────────────────────────────────────────────────────────
 
-export type JobStatus = "pending" | "running" | "done" | "failed" | "cancelled";
+// "partial" means the job finished with at least one success and at least
+// one failure — distinct from "done" (all succeeded/skipped) and "failed"
+// (all failed), so monitoring can alert on partial failures specifically.
+export type JobStatus = "pending" | "running" | "done" | "partial" | "failed" | "cancelled";
 export type FileStatus =
   | "pending"
   | "running"

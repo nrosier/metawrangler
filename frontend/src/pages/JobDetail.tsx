@@ -18,6 +18,7 @@ import {
 import { api } from "@/lib/api";
 import { useJobSocket } from "@/hooks/useJobSocket";
 import { StatusBadge } from "@/components/StatusBadge";
+import { QueryError } from "@/components/QueryError";
 import { formatPath, formatDate } from "@/lib/utils";
 import type { JobFile, FileStatus } from "@/types";
 
@@ -34,7 +35,12 @@ export function JobDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data: initialJob } = useQuery({
+  const {
+    data: initialJob,
+    isError: isJobError,
+    error: jobError,
+    refetch: refetchJob,
+  } = useQuery({
     queryKey: ["job", id],
     queryFn: () => api.jobs.get(id!),
     enabled: !!id,
@@ -79,12 +85,20 @@ export function JobDetailPage() {
   });
 
   if (!job) {
+    // A 403/404/network error on the initial fetch used to render exactly
+    // like "still loading" — an infinite spinner with no way to tell a
+    // permission/backend failure from a slow response (UX-02).
+    if (isJobError) {
+      return <QueryError error={jobError} onRetry={() => { void refetchJob(); }} />;
+    }
     return <p className="muted">Loading…</p>;
   }
 
   const progress = job.totalFiles > 0 ? Math.round((job.processedFiles / job.totalFiles) * 100) : 0;
 
-  const canUndo = job.status === "done" && !job.dryRun;
+  // "partial" jobs can still have some successfully-edited files with a
+  // snapshot — undoJob() itself filters to only those, so it's safe to offer.
+  const canUndo = (job.status === "done" || job.status === "partial") && !job.dryRun;
 
   return (
     <div className="stack" style={{ maxWidth: "48rem" }}>

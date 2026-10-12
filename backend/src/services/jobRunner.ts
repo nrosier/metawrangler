@@ -155,6 +155,36 @@ async function processJob(
   updateJobStatus(jobId, "running");
   emitJobUpdate(jobId);
 
+  try {
+    await runJobFiles(jobId, userId, userEmail, request);
+  } catch (err: unknown) {
+    // processJob is invoked fire-and-forget (`void processJob(...)`) by
+    // createJob — nothing else awaits this promise. A throw here (e.g. a DB
+    // call failing outside the per-file try below) would otherwise become
+    // an unhandled rejection, leaving the job stuck in "running" forever
+    // with no terminal event ever emitted. Always persist a terminal status.
+    logger.error({ jobId, err }, "Job processing failed outside per-file handling");
+    updateJobStatus(jobId, "failed");
+    emitJobComplete(jobId);
+    writeAuditEntry({
+      userId,
+      userEmail,
+      action: "edit",
+      jobId,
+      detail: {
+        event: "job_runner_error",
+        error: err instanceof Error ? err.message : "Unknown error",
+      },
+    });
+  }
+}
+
+async function runJobFiles(
+  jobId: string,
+  userId: string,
+  userEmail: string,
+  request: BulkEditRequest
+): Promise<void> {
   let processedCount = 0;
 
   for (const filePath of request.filePaths) {
@@ -257,8 +287,11 @@ async function processJob(
     .all();
 
   const anyFailed = allFiles.some((f) => f.status === "failed");
-  const allFailed = allFiles.every((f) => f.status === "failed");
-  const finalStatus = allFailed ? "failed" : anyFailed ? "done" : "done";
+  const allFailed = allFiles.length > 0 && allFiles.every((f) => f.status === "failed");
+  // Distinguish full success/skip ("done"), total failure ("failed"), and a
+  // mix of the two ("partial") — collapsing partial into "done" hid partial
+  // failures from job status alone (QUAL-03).
+  const finalStatus = allFailed ? "failed" : anyFailed ? "partial" : "done";
 
   updateJobStatus(jobId, finalStatus);
   emitJobComplete(jobId);
@@ -350,6 +383,22 @@ async function processUndoJob(
   updateJobStatus(undoJobId, "running");
   emitJobUpdate(undoJobId);
 
+  try {
+    await runUndoJobFiles(undoJobId, originalFiles);
+  } catch (err: unknown) {
+    // Same reasoning as processJob's wrapper: undoJob() also fires this
+    // off without awaiting it, so an exception here must not become an
+    // unhandled rejection that leaves the undo job stuck in "running".
+    logger.error({ undoJobId, err }, "Undo job processing failed outside per-file handling");
+    updateJobStatus(undoJobId, "failed");
+    emitJobComplete(undoJobId);
+  }
+}
+
+async function runUndoJobFiles(
+  undoJobId: string,
+  originalFiles: Array<{ filePath: string; snapshotBefore: string | null; id: string }>
+): Promise<void> {
   let processedCount = 0;
 
   for (const originalFile of originalFiles) {
@@ -423,8 +472,9 @@ async function processUndoJob(
     .from(jobFiles)
     .where(eq(jobFiles.jobId, undoJobId))
     .all();
+  const anyFailed = allFiles.some((f) => f.status === "failed");
   const allFailed = allFiles.length > 0 && allFiles.every((f) => f.status === "failed");
-  const finalStatus = allFailed ? "failed" : "done";
+  const finalStatus = allFailed ? "failed" : anyFailed ? "partial" : "done";
 
   updateJobStatus(undoJobId, finalStatus);
   emitJobComplete(undoJobId);
