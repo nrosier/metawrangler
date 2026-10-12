@@ -2,7 +2,7 @@
  * useJobSocket hook tests
  * Tests WebSocket subscription and event handling
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useJobSocket } from "../useJobSocket";
 

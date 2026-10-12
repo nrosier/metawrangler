@@ -2,6 +2,7 @@
  * TrackList component tests
  * Tests track display and accessibility
  */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TrackList } from "../TrackList";
@@ -14,6 +15,8 @@ describe("TrackList", () => {
       type: "video",
       codecId: "V_UNCOMPRESSED",
       language: "eng",
+      languageIETF: "en",
+      name: null,
       flagDefault: true,
       flagForced: false,
       flagEnabled: true,
@@ -23,6 +26,8 @@ describe("TrackList", () => {
       type: "audio",
       codecId: "A_AAC",
       language: "eng",
+      languageIETF: "en",
+      name: null,
       channels: 2,
       flagDefault: true,
       flagForced: false,
@@ -33,6 +38,8 @@ describe("TrackList", () => {
       type: "subtitles",
       codecId: "S_TEXT/ASS",
       language: "fra",
+      languageIETF: "fr",
+      name: null,
       flagDefault: false,
       flagForced: false,
       flagEnabled: true,

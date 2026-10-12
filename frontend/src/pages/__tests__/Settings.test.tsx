@@ -4,7 +4,6 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { SettingsPage } from "../Settings";
@@ -45,6 +44,7 @@ describe("SettingsPage", () => {
 
   it("does not crash on render", () => {
     const { container } = renderWithProviders(<SettingsPage />);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     expect(container).toBeInTheDocument();
   });
 
