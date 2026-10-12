@@ -42,10 +42,12 @@ export default defineConfig({
     },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: "docker-compose up -d && sleep 5",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  /* Run your local dev server before starting the tests (only in local dev) */
+  webServer: process.env.CI
+    ? undefined
+    : {
+        command: "docker compose up -d && sleep 5",
+        reuseExistingServer: true,
+        timeout: 120 * 1000,
+      },
 });
