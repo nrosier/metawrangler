@@ -7,7 +7,7 @@ COPY . .
 RUN npm run build
 
 # ── Stage 2: Serve with Nginx (Alpine) ───────────────────────────────────────
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 ARG GITHUB_SHA=unknown
 LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
