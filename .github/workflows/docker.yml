@@ -22,6 +22,7 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main]
+    paths:
       - backend/Dockerfile
       - backend/src/**
       - backend/package.json
