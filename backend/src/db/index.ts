@@ -79,5 +79,16 @@ export function runMigrations(): void {
     CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
   `);
 
+  // Added after initial release: persists the operation payload a job was
+  // created to run, so a restarted backend can at least report *what* a
+  // stuck job was doing instead of only that it existed. bun:sqlite doesn't
+  // support `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so check manually.
+  const jobsColumns = sqlite
+    .query("SELECT name FROM pragma_table_info('jobs')")
+    .all() as Array<{ name: string }>;
+  if (!jobsColumns.some((c) => c.name === "operations")) {
+    sqlite.exec("ALTER TABLE jobs ADD COLUMN operations TEXT;");
+  }
+
   logger.info("Migrations complete");
 }

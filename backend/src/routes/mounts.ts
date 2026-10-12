@@ -98,14 +98,28 @@ mountsRouter.post("/", zValidator("json", createMountSchema), async (c) => {
   return c.json(db.select().from(mounts).where(eq(mounts.id, id)).get(), 201);
 });
 
-// PATCH /api/mounts/:id — update name or type (not path)
-mountsRouter.patch("/:id", zValidator("json", updateMountSchema), (c) => {
+// PATCH /api/mounts/:id — update name, type, or path
+mountsRouter.patch("/:id", zValidator("json", updateMountSchema), async (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
   const body = c.req.valid("json");
 
   const existing = db.select().from(mounts).where(eq(mounts.id, id)).get();
   if (!existing) return c.json({ error: "Mount not found" }, 404);
+
+  // If the path is being changed, it needs the same existence/directory
+  // validation POST / applies — a mount's path is a trust boundary, not a
+  // free-form string.
+  if (body.path !== undefined) {
+    try {
+      const s = await stat(body.path);
+      if (!s.isDirectory()) {
+        return c.json({ error: "Path is not a directory" }, 400);
+      }
+    } catch {
+      return c.json({ error: "Path does not exist or is not accessible" }, 400);
+    }
+  }
 
   const now = new Date().toISOString();
   db.update(mounts).set({ ...body, updatedAt: now }).where(eq(mounts.id, id)).run();

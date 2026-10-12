@@ -5,7 +5,7 @@
  */
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { readFile } from "fs/promises";
+import { open } from "fs/promises";
 import { readdirSync, statSync } from "fs";
 import path from "path";
 import type { MkvFileMetadata, MkvTrack, TrackType } from "../types/index.js";
@@ -18,13 +18,25 @@ const EBML_MAGIC = Buffer.from([0x1a, 0x45, 0xdf, 0xa3]);
 
 /**
  * Validate that a file starts with EBML magic bytes (i.e., is actually a Matroska file).
+ *
+ * Reads only the first 4 bytes via a file handle — do NOT use fs.readFile here,
+ * it loads the whole file into memory and throws ERR_FS_FILE_TOO_LARGE for
+ * anything over 2 GiB, which is most real MKV rips.
  */
 export async function isValidMkv(filePath: string): Promise<boolean> {
+  let handle;
   try {
-    const fd = await readFile(filePath);
-    return fd.subarray(0, 4).equals(EBML_MAGIC);
-  } catch {
+    handle = await open(filePath, "r");
+    const { buffer, bytesRead } = await handle.read({
+      buffer: Buffer.alloc(4),
+      position: 0,
+    });
+    return bytesRead === 4 && buffer.equals(EBML_MAGIC);
+  } catch (err) {
+    logger.warn({ filePath, err }, "Failed to read file for MKV magic byte check");
     return false;
+  } finally {
+    await handle?.close();
   }
 }
 

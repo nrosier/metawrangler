@@ -26,6 +26,12 @@ export const jobs = sqliteTable("jobs", {
   status: text("status").notNull().default("pending"),
   /** true = dry run, don't write anything */
   dryRun: integer("dry_run", { mode: "boolean" }).notNull().default(false),
+  /**
+   * JSON string: the EditOperation[] this job was created to apply. Persisted
+   * so a restarted backend has a record of what a stuck job was doing — undo
+   * jobs don't set this, since they're driven by per-file snapshots instead.
+   */
+  operations: text("operations"),
   totalFiles: integer("total_files").notNull().default(0),
   processedFiles: integer("processed_files").notNull().default(0),
   createdAt: text("created_at").notNull(),

@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { mounts } from "../db/schema.js";
 import { walkMkvFiles, listDirectory, scanFile } from "../services/scanner.js";
-import { assertWithinBase } from "../lib/pathSecurity.js";
+import { assertSafePath, assertWithinBase } from "../lib/pathSecurity.js";
 import { writeAuditEntry } from "../services/audit.js";
 import { logger } from "../lib/logger.js";
 
@@ -40,7 +40,7 @@ scanRouter.get("/:mountId", (c) => {
 // directory-by-directory browsing view.
 const listSchema = z.object({ path: z.string().min(1).optional() });
 
-scanRouter.get("/:mountId/list", zValidator("query", listSchema), (c) => {
+scanRouter.get("/:mountId/list", zValidator("query", listSchema), async (c) => {
   const mountId = c.req.param("mountId");
   const { path: reqPath } = c.req.valid("query");
 
@@ -49,7 +49,7 @@ scanRouter.get("/:mountId/list", zValidator("query", listSchema), (c) => {
 
   let safePath: string;
   try {
-    safePath = assertWithinBase(reqPath ?? mount.path, mount.path);
+    safePath = await assertWithinBase(reqPath ?? mount.path, mount.path);
   } catch {
     return c.json({ error: "Invalid path" }, 403);
   }
@@ -61,7 +61,7 @@ scanRouter.get("/:mountId/list", zValidator("query", listSchema), (c) => {
 // GET /api/scan/:mountId/subdir — list files under a specific subdir
 const subdirSchema = z.object({ subdir: z.string().min(1) });
 
-scanRouter.get("/:mountId/subdir", zValidator("query", subdirSchema), (c) => {
+scanRouter.get("/:mountId/subdir", zValidator("query", subdirSchema), async (c) => {
   const mountId = c.req.param("mountId");
   const { subdir } = c.req.valid("query");
 
@@ -71,7 +71,7 @@ scanRouter.get("/:mountId/subdir", zValidator("query", subdirSchema), (c) => {
   // Path traversal check — subdir must stay within the mount
   let safePath: string;
   try {
-    safePath = assertWithinBase(subdir, mount.path);
+    safePath = await assertWithinBase(subdir, mount.path);
   } catch {
     return c.json({ error: "Invalid subdir path" }, 403);
   }
@@ -89,19 +89,12 @@ scanRouter.post("/file", zValidator("json", fileMetaSchema), async (c) => {
   const user = c.get("user");
   const { filePaths } = c.req.valid("json");
 
-  // Only allow files within registered mounts
-  const allMounts = db.select({ path: mounts.path }).from(mounts).all();
-
   const results = await Promise.allSettled(
     filePaths.map(async (filePath) => {
-      // Path security check against all registered mounts
-      const isAllowed = allMounts.some(
-        (m) => filePath.startsWith(m.path + "/") || filePath === m.path
-      );
-      if (!isAllowed) {
-        throw new Error(`Path '${filePath}' is outside all registered mounts`);
-      }
-      return scanFile(filePath);
+      // Canonical, symlink-resolved path security check against all registered
+      // mounts (NOT a raw string prefix check — that admits "../" traversal).
+      const safePath = await assertSafePath(filePath);
+      return scanFile(safePath);
     })
   );
 
