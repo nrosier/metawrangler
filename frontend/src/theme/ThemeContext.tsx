@@ -42,8 +42,19 @@ export function ThemeProvider({ children }: { children: ReactNode }): ReactNode 
   const [mode, setMode] = useState<ThemeMode>(storedMode)
   const [resolved, setResolved] = useState<ResolvedTheme>(() => resolveTheme(storedMode()))
 
+  // Derived from `mode` during render rather than via setState-in-effect, to
+  // avoid the extra cascading render that would otherwise follow every mode
+  // change. See https://react.dev/learn/you-might-not-need-an-effect.
+  const [prevMode, setPrevMode] = useState(mode)
+  if (mode !== prevMode) {
+    setPrevMode(mode)
+    setResolved(resolveTheme(mode))
+  }
+
+  // Applying to the DOM and persisting are genuine external-system effects,
+  // so they stay in a plain effect — this one just never calls setState.
   useEffect(() => {
-    setResolved(applyMode(mode))
+    applyMode(mode)
   }, [mode])
 
   useEffect(
