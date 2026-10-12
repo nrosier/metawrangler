@@ -49,8 +49,8 @@ describe("AuditLogPage", () => {
     const { container } = renderWithProviders(<AuditLogPage />);
     const tables = container.querySelectorAll("table");
     tables.forEach((table) => {
-      const headers = table.querySelectorAll("th[scope='col']");
-      if (headers.length > 0) {
+      const headers = Array.from(table.querySelectorAll("th[scope='col']"));
+      if (headers.length > 0 && headers[0]) {
         expect(headers[0].getAttribute("scope")).toBe("col");
       }
     });

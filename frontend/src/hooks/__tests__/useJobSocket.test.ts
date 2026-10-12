@@ -2,6 +2,7 @@
  * useJobSocket hook tests
  * Tests WebSocket subscription and event handling
  */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-function-type, @typescript-eslint/no-unused-vars */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useJobSocket } from "../useJobSocket";
@@ -49,7 +50,6 @@ describe("useJobSocket", () => {
       }
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).WebSocket = mockWebSocket;
   });
 
@@ -86,7 +86,6 @@ describe("useJobSocket", () => {
       (wsInstance as any).onopen(new Event("open"));
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockJob: any = { id: "test-job-123", status: "running", totalFiles: 5, processedFiles: 2 };
 
     if (wsInstance && (wsInstance as any).onmessage) {
@@ -109,7 +108,6 @@ describe("useJobSocket", () => {
   it("accumulates file updates in map", async () => {
     const { result } = renderHook(() => useJobSocket("test-job-123"));
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockFile: any = { id: "f1", jobId: "test-job-123", filePath: "test.mkv", status: "success" };
 
     if (wsInstance && (wsInstance as any).onmessage) {

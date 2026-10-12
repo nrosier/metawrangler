@@ -2,6 +2,7 @@
  * QueryError component tests
  * Tests error display and recovery
  */
+/* eslint-disable @typescript-eslint/require-await */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

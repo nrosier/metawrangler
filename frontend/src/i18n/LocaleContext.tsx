@@ -2,7 +2,7 @@
  * Locale context and provider — manages current language selection
  * Persists to localStorage for user preference
  */
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import type { Locale } from "./messages";
 import { messages } from "./messages";
 
@@ -67,6 +67,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useLocale(): LocaleContextType {
   const ctx = useContext(LocaleContext);
   if (!ctx) {

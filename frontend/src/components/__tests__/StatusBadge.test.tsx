@@ -2,7 +2,6 @@
  * StatusBadge component tests
  * Tests status display and styling
  */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { StatusBadge } from "../StatusBadge";

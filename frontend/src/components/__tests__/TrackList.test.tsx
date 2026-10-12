@@ -2,7 +2,6 @@
  * TrackList component tests
  * Tests track display and accessibility
  */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TrackList } from "../TrackList";
