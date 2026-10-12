@@ -20,6 +20,8 @@ name: Docker
 on:
   push:
     tags: ["v*"]
+  pull_request:
+    branches: [main]
       - backend/Dockerfile
       - backend/src/**
       - backend/package.json

@@ -1,15 +1,15 @@
 # ── Stage 1: Install production dependencies ──────────────────────────────────
 FROM oven/bun:1.4-alpine AS deps
 WORKDIR /app
-# Copy root + backend workspace files for bun to understand structure
+# Copy root package.json (workspace root) so bun knows all workspaces exist
 COPY package.json ./
+# Copy frontend dir so workspace declaration is satisfied (even though we won't use it)
+COPY frontend ./frontend
+# Copy backend workspace files
 COPY backend/package.json backend/bun.lock* ./backend/
-# Install with verbose output for debugging
-RUN set -x && \
-    ls -la backend/ && \
-    cd backend && \
-    cat package.json && \
-    bun install --verbose 2>&1
+# Install backend dependencies only
+RUN cd backend && \
+    bun install --production 2>&1
 
 # ── Stage 2: Runtime — Alpine + mkvtoolnix + ffmpeg ───────────────────────────
 FROM oven/bun:1.4-alpine
