@@ -6,7 +6,11 @@ COPY package.json package-lock.json ./
 COPY frontend ./frontend
 # Install workspace dependencies
 RUN npm ci --workspace=metawrangler-frontend
-# Build frontend
+# Build frontend (commit/time are baked into the bundle for the version display)
+ARG GITHUB_SHA=unknown
+ARG BUILD_TIME=unknown
+ENV VITE_GIT_SHA=${GITHUB_SHA}
+ENV VITE_BUILD_TIME=${BUILD_TIME}
 WORKDIR /app/frontend
 RUN npm run build
 

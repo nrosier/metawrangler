@@ -11,6 +11,7 @@ import { checkToolchain } from "./services/scanner.js";
 import { reconcileInterruptedJobs } from "./services/jobRunner.js";
 import { authMiddleware, assertAdminGroupConfigured } from "./lib/auth.js";
 import { logger } from "./lib/logger.js";
+import { VERSION_INFO } from "./lib/version.js";
 import { mountsRouter } from "./routes/mounts.js";
 import { scanRouter } from "./routes/scan.js";
 import { jobsRouter } from "./routes/jobs.js";
@@ -81,8 +82,11 @@ app.use("*", honoLogger());
 
 // Health check — no auth required (used by Docker healthcheck)
 app.get("/health", (c) =>
-  c.json({ status: "ok", ts: new Date().toISOString() })
+  c.json({ status: "ok", ts: new Date().toISOString(), ...VERSION_INFO })
 );
+
+// Version info for the UI footer (behind auth like every other /api route)
+app.get("/api/version", (c) => c.json(VERSION_INFO));
 
 // All API routes require valid Authentik headers
 app.use("/api/*", authMiddleware);
@@ -125,4 +129,4 @@ Bun.serve({
   },
 });
 
-logger.info({ port: PORT }, "MetaWrangler backend started");
+logger.info({ port: PORT, ...VERSION_INFO }, "MetaWrangler backend started");

@@ -16,28 +16,61 @@ const execFileAsync = promisify(execFile);
 // EBML magic bytes: 0x1A 0x45 0xDF 0xA3
 const EBML_MAGIC = Buffer.from([0x1a, 0x45, 0xdf, 0xa3]);
 
+export interface MkvHeaderCheck {
+  valid: boolean;
+  /** Human-readable reason, suitable for error messages and logs. */
+  reason: string;
+  sizeBytes?: number;
+  /** First up to 16 bytes, hex-encoded. */
+  headerHex?: string;
+  errorCode?: string;
+}
+
 /**
- * Validate that a file starts with EBML magic bytes (i.e., is actually a Matroska file).
+ * Inspect the first bytes of a file and report whether they are the EBML magic
+ * (i.e., the file is actually a Matroska file), with diagnostics for when not.
  *
- * Reads only the first 4 bytes via a file handle — do NOT use fs.readFile here,
+ * Reads only the first 16 bytes via a file handle — do NOT use fs.readFile here,
  * it loads the whole file into memory and throws ERR_FS_FILE_TOO_LARGE for
  * anything over 2 GiB, which is most real MKV rips.
  */
-export async function isValidMkv(filePath: string): Promise<boolean> {
+export async function inspectMkvHeader(filePath: string): Promise<MkvHeaderCheck> {
   let handle;
   try {
     handle = await open(filePath, "r");
+    const { size } = await handle.stat();
     const { buffer, bytesRead } = await handle.read({
-      buffer: Buffer.alloc(4),
+      buffer: Buffer.alloc(16),
       position: 0,
     });
-    return bytesRead === 4 && buffer.equals(EBML_MAGIC);
+    const headerHex = buffer.subarray(0, bytesRead).toString("hex");
+    const valid = bytesRead >= 4 && buffer.subarray(0, 4).equals(EBML_MAGIC);
+    const result: MkvHeaderCheck = {
+      valid,
+      reason: valid
+        ? "EBML magic found"
+        : `expected EBML magic 1a45dfa3, got "${headerHex}" (read ${bytesRead} bytes, file size ${size})`,
+      sizeBytes: size,
+      headerHex,
+    };
+    if (!valid) logger.warn({ filePath, ...result }, "MKV magic byte check failed");
+    return result;
   } catch (err) {
+    const errorCode = (err as NodeJS.ErrnoException).code;
+    const message = err instanceof Error ? err.message : String(err);
     logger.warn({ filePath, err }, "Failed to read file for MKV magic byte check");
-    return false;
+    return {
+      valid: false,
+      reason: `could not read file: ${errorCode ?? message}`,
+      ...(errorCode !== undefined ? { errorCode } : {}),
+    };
   } finally {
     await handle?.close();
   }
+}
+
+export async function isValidMkv(filePath: string): Promise<boolean> {
+  return (await inspectMkvHeader(filePath)).valid;
 }
 
 /**

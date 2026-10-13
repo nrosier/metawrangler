@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from "uuid";
 import { eq, or } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { jobs, jobFiles } from "../db/schema.js";
-import { scanFile, isValidMkv } from "./scanner.js";
+import { scanFile, inspectMkvHeader } from "./scanner.js";
 import {
   buildMkvpropeditArgs,
   runMkvpropedit,
@@ -199,9 +199,15 @@ async function runJobFiles(
       const safePath = await assertSafePath(filePath);
 
       // 2. EBML magic byte validation
-      const valid = await isValidMkv(safePath);
-      if (!valid) {
-        throw new Error("File does not appear to be a valid Matroska (MKV) file");
+      const header = await inspectMkvHeader(safePath);
+      if (!header.valid) {
+        logger.error(
+          { jobId, filePath, safePath, ...header },
+          "File failed MKV validation"
+        );
+        throw new Error(
+          `File does not appear to be a valid Matroska (MKV) file: ${header.reason}`
+        );
       }
 
       // 3. Write permission check (skip in dry-run)

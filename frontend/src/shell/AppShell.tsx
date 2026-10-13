@@ -13,6 +13,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { IconFilm } from '../icons'
 import { Nav } from './Nav'
+import { VersionFooter } from './VersionFooter'
 import { ThemeToggle } from './ThemeToggle'
 import { LocaleToggle } from './LocaleToggle'
 import './shell.css'
@@ -45,6 +46,7 @@ export function AppShell({ children }: AppShellProps): ReactNode {
 
       <main id="main" className="main">
         {children}
+        <VersionFooter />
       </main>
     </div>
   )

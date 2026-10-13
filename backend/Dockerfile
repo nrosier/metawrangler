@@ -15,6 +15,7 @@ RUN cd backend && \
 FROM oven/bun:1.4-alpine
 
 ARG GITHUB_SHA=unknown
+ARG BUILD_TIME=unknown
 LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
 
 # Install mkvtoolnix (mkvmerge + mkvpropedit) and ffmpeg from Alpine repos.
@@ -45,6 +46,8 @@ USER bun
 ENV NODE_ENV=production
 ENV DATA_DIR=/app/data
 ENV PORT=3001
+ENV GIT_SHA=${GITHUB_SHA}
+ENV BUILD_TIME=${BUILD_TIME}
 
 EXPOSE 3001
 

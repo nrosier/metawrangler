@@ -132,7 +132,9 @@ jobs:
             ${{ steps.meta.outputs.tags }}
             ${{ steps.rolling.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: GITHUB_SHA=${{ github.sha }}
+          build-args: |
+            GITHUB_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp || github.run_started_at }}
           cache-from: type=gha,scope=backend-v2
           cache-to: type=gha,mode=max,scope=backend-v2
           provenance: false
@@ -246,7 +248,9 @@ jobs:
             ${{ steps.meta.outputs.tags }}
             ${{ steps.rolling.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: GITHUB_SHA=${{ github.sha }}
+          build-args: |
+            GITHUB_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp || github.run_started_at }}
           cache-from: type=gha,scope=frontend-v2
           cache-to: type=gha,mode=max,scope=frontend-v2
           provenance: false

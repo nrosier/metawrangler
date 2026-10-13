@@ -42,7 +42,14 @@ async function request<T>(
 
 // ── Mounts ────────────────────────────────────────────────────────────────────
 
+export interface VersionInfo {
+  version: string;
+  commit: string;
+  buildTime: string;
+}
+
 export const api = {
+  version: () => request<VersionInfo>("GET", "/version"),
   mounts: {
     list: () => request<Mount[]>("GET", "/mounts"),
     create: (data: { name: string; path: string; type: "movies" | "series" }) =>
