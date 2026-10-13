@@ -38,6 +38,8 @@ COPY --from=deps --chown=bun:bun /app/backend/node_modules ./backend/node_module
 
 # Copy source — Bun runs TypeScript natively, no compile step needed
 COPY --chown=bun:bun backend/src ./backend/src
+# SQL migrations are read at startup by runMigrations()
+COPY --chown=bun:bun backend/drizzle ./backend/drizzle
 COPY --chown=bun:bun backend/package.json backend/tsconfig.json ./backend/
 
 # Drop to non-root (bun user, uid 1000)
