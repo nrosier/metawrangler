@@ -79,7 +79,12 @@ export function runMigrations(): void {
     try {
       // For migrations with conditional steps (like ALTER TABLE IF NOT EXISTS),
       // split on semicolons and execute each statement individually to handle errors
+      // Strip comment lines first: bun:sqlite rejects statements that are only
+      // (or lead with) comments with "Query contained no valid SQL statement".
       const statements = sql
+        .split("\n")
+        .filter((line) => !line.trim().startsWith("--"))
+        .join("\n")
         .split(";")
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
