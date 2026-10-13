@@ -7,8 +7,10 @@ COPY frontend ./frontend
 # Install workspace dependencies
 RUN npm ci --workspace=metawrangler-frontend
 # Build frontend (commit/time are baked into the bundle for the version display)
+ARG APP_VERSION=
 ARG GITHUB_SHA=unknown
 ARG BUILD_TIME=unknown
+ENV VITE_APP_VERSION=${APP_VERSION}
 ENV VITE_GIT_SHA=${GITHUB_SHA}
 ENV VITE_BUILD_TIME=${BUILD_TIME}
 WORKDIR /app/frontend

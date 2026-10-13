@@ -14,6 +14,7 @@ RUN cd backend && \
 # ── Stage 2: Runtime — Alpine + mkvtoolnix + ffmpeg ───────────────────────────
 FROM oven/bun:1.4-alpine
 
+ARG APP_VERSION=
 ARG GITHUB_SHA=unknown
 ARG BUILD_TIME=unknown
 LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
@@ -48,6 +49,7 @@ USER bun
 ENV NODE_ENV=production
 ENV DATA_DIR=/app/data
 ENV PORT=3001
+ENV APP_VERSION=${APP_VERSION}
 ENV GIT_SHA=${GITHUB_SHA}
 ENV BUILD_TIME=${BUILD_TIME}
 
