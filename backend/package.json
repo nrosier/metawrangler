@@ -22,17 +22,17 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/bun": "^1.4.3",
-    "@types/node": "^26.6.5",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^26.6.6",
     "@types/uuid": "^11.0.0",
-    "@typescript-eslint/eslint-plugin": "^8.71.2",
-    "@typescript-eslint/parser": "^8.71.2",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
     "drizzle-kit": "^0.31.11",
-    "eslint": "^10.12.0",
+    "eslint": "^10.14.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.71.2",
-    "vitest": "^5.0.4"
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.0.5"
   },
   "overrides": {
     "@esbuild-kit/core-utils": {
