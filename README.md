@@ -113,13 +113,13 @@ cd frontend && npm install && npm run dev
 
 ## Releasing
 
-Tag a commit to publish to Docker Hub:
+Tag a commit to publish to GitHub Container Registry:
 
 ```bash
 git tag v1.0.0 && git push --tags
 ```
 
-This builds and pushes `niqck/metawrangler-backend` and `niqck/metawrangler-frontend`  
+This builds and pushes `ghcr.io/nrosier/metawrangler-backend` and `ghcr.io/nrosier/metawrangler-frontend`  
 with tags `1.0.0`, `1.0`, `1`, and `latest`.
 
 ## Undo
