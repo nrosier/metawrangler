@@ -80,6 +80,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve version
+        id: version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            VERSION="${INPUT_VERSION#v}"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=""
+          fi
+
+          if [[ -n "$VERSION" ]]; then
+            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::Invalid version '${VERSION}': expected semver such as 1.2.3 or 1.2.3-rc.1 (no leading v)."
+              exit 1
+            fi
+          fi
+
+          echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Compute tags
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
@@ -91,8 +116,8 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            # Manual dispatch: use the version input
-            type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            # Resolved version (dispatch input or v* tag); empty on PRs
+            type=raw,value=${{ steps.version.outputs.value }},enable=${{ steps.version.outputs.value != '' }}
             # PR: pr-<n>
             type=ref,event=pr
             # Always: sha-<short> — guarantees at least one valid tag on every run
@@ -134,7 +159,7 @@ jobs:
             ${{ steps.rolling.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            APP_VERSION=${{ steps.meta.outputs.version }}
+            APP_VERSION=${{ steps.version.outputs.value || steps.meta.outputs.version }}
             GITHUB_SHA=${{ github.sha }}
             BUILD_TIME=${{ github.event.head_commit.timestamp || github.run_started_at }}
           cache-from: type=gha,scope=backend-v2
@@ -202,6 +227,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve version
+        id: version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            VERSION="${INPUT_VERSION#v}"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=""
+          fi
+
+          if [[ -n "$VERSION" ]]; then
+            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::Invalid version '${VERSION}': expected semver such as 1.2.3 or 1.2.3-rc.1 (no leading v)."
+              exit 1
+            fi
+          fi
+
+          echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Compute tags
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
@@ -212,7 +262,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.version.outputs.value }},enable=${{ steps.version.outputs.value != '' }}
             type=ref,event=pr
             type=sha,format=short,prefix=sha-
           labels: |
@@ -252,7 +302,7 @@ jobs:
             ${{ steps.rolling.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            APP_VERSION=${{ steps.meta.outputs.version }}
+            APP_VERSION=${{ steps.version.outputs.value || steps.meta.outputs.version }}
             GITHUB_SHA=${{ github.sha }}
             BUILD_TIME=${{ github.event.head_commit.timestamp || github.run_started_at }}
           cache-from: type=gha,scope=frontend-v2
