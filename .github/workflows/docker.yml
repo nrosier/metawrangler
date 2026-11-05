@@ -125,6 +125,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=MetaWrangler Backend
             org.opencontainers.image.description=MKV metadata editor — Hono API + mkvpropedit
+            org.opencontainers.image.revision=${{ github.sha }}
 
       - name: Decide rolling tag (latest / edge / none)
         id: rolling
@@ -268,6 +269,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=MetaWrangler Frontend
             org.opencontainers.image.description=MKV metadata editor — React + Nginx
+            org.opencontainers.image.revision=${{ github.sha }}
 
       - name: Decide rolling tag (latest / edge / none)
         id: rolling
