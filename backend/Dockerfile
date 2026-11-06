@@ -17,7 +17,8 @@ FROM oven/bun:1.4-alpine
 ARG APP_VERSION=
 ARG GITHUB_SHA=unknown
 ARG BUILD_TIME=unknown
-LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
+ARG REVISION=unknown
+LABEL org.opencontainers.image.revision="${REVISION}"
 
 # Install mkvtoolnix (mkvmerge + mkvpropedit) and ffmpeg from Alpine repos.
 RUN apk update \

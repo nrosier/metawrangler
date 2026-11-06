@@ -19,8 +19,8 @@ RUN npm run build
 # ── Stage 2: Serve with Nginx (Alpine) ───────────────────────────────────────
 FROM nginx:1.31-alpine
 
-ARG GITHUB_SHA=unknown
-LABEL org.opencontainers.image.revision="${GITHUB_SHA}"
+ARG REVISION=unknown
+LABEL org.opencontainers.image.revision="${REVISION}"
 
 COPY --from=builder /app/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/nginx.conf
