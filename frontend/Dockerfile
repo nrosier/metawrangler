@@ -1,5 +1,5 @@
 # ── Stage 1: Build the React app ─────────────────────────────────────────────
-FROM node:24-alpine AS builder
+FROM node:24.22.2-alpine AS builder
 WORKDIR /app
 # When context=root, copy root lock file + frontend workspace
 COPY package.json package-lock.json ./
