@@ -1,0 +1,192 @@
+name: Security Scan (Syft + Grype + Trivy)
+
+# Multi-engine security scanning of the repository.
+#
+#   Syft   (anchore/sbom-action)            — CycloneDX SBOM, uploaded as artifact sbom-cyclonedx
+#   Grype  (anchore/scan-action)            — dependency vulnerabilities from the SBOM → grype-results.sarif
+#   Trivy  (aquasecurity/trivy-action)      — vuln, secret, and config scanners → trivy-results.sarif
+#   Both SARIF files are uploaded to GitHub Code Scanning under distinct categories.
+#
+# Scheduled runs also open or update one open issue labeled `security` when
+# High/Critical findings exist.
+#
+# All action references are pinned by full commit SHA; the trailing comment is the release tag.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  security-events: write
+  id-token: write
+
+jobs:
+  scan:
+    name: Syft, Grype, and Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Syft: generates the SBOM. The action uploads it as an artifact by default
+      # (upload-artifact defaults to "true"), so no separate upload step is needed.
+      - name: Syft — generate SBOM
+        id: sbom
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: "."
+          format: cyclonedx-json
+          output-file: sbom.cyclonedx.json
+          artifact-name: sbom-cyclonedx
+          syft-version: v1.57.0
+
+      # Grype: scans the SBOM. Runs even if the SBOM step failed, so the failure
+      # stays visible here (grype fails on a missing SBOM file rather than inventing data).
+      - name: Grype — scan SBOM
+        id: grype
+        if: always()
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          sbom: sbom.cyclonedx.json
+          fail-build: false
+          output-format: sarif
+          output-file: grype-results.sarif
+          grype-version: v0.121.2
+
+      # Trivy: filesystem scan for CVEs, secrets, and IaC/Dockerfile misconfigurations.
+      - name: Trivy — filesystem scan
+        id: trivy
+        if: always()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: "."
+          format: sarif
+          output: trivy-results.sarif
+          scanners: vuln,secret,config
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+          hide-progress: "true"
+          version: v0.76.2
+
+      - name: Upload Grype SARIF to Code Scanning
+        if: always() && hashFiles('grype-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: grype-results.sarif
+          category: grype-engine
+
+      - name: Upload Trivy SARIF to Code Scanning
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-engine
+
+      # Scheduled runs only. Tracks High/Critical findings in a single open `security` issue.
+      # Runs under always() so a failing scanner does not suppress tracking of the other engine.
+      - name: Track High/Critical findings in issue
+        if: always() && github.event_name == 'schedule'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const { owner, repo } = context.repo;
+            const files = ['grype-results.sarif', 'trivy-results.sarif'];
+            const prefix = 'Automated Security Report: High/Critical';
+
+            // A result is High/Critical when its rule's security-severity >= 7.0,
+            // or, when no security-severity is present, its level is "error".
+            const isHighOrCritical = (run, result) => {
+              const ruleIndex = typeof result.ruleIndex === 'number' ? result.ruleIndex : -1;
+              const ruleId = result.ruleId ?? result.rule?.id;
+              const rule =
+                (ruleId && (run.tool?.driver?.rules || []).find((r) => r.id === ruleId)) ||
+                (ruleIndex >= 0 ? run.tool?.driver?.rules?.[ruleIndex] : undefined) ||
+                {};
+              const ss = rule.properties?.['security-severity'] ?? result.properties?.['security-severity'];
+              const score = parseFloat(ss);
+              if (ss !== undefined && Number.isFinite(score)) {
+                return score >= 7.0;
+              }
+              return result.level === 'error';
+            };
+
+            const counts = {};
+            for (const file of files) {
+              if (!fs.existsSync(file)) {
+                core.info(`${file}: not found, skipping.`);
+                continue;
+              }
+              let sarif;
+              try {
+                sarif = JSON.parse(fs.readFileSync(file, 'utf8'));
+              } catch (err) {
+                core.warning(`${file}: could not be parsed (${err.message}), skipping.`);
+                continue;
+              }
+              core.info(`${file}: read.`);
+              let n = 0;
+              for (const run of sarif.runs || []) {
+                for (const result of run.results || []) {
+                  if (isHighOrCritical(run, result)) n += 1;
+                }
+              }
+              counts[file] = n;
+            }
+
+            const total = Object.values(counts).reduce((a, b) => a + b, 0);
+            if (total === 0) {
+              core.info('No High/Critical findings. No issue action taken.');
+              return;
+            }
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              labels: 'security',
+              per_page: 100,
+            });
+            const existing = issues.find((i) => !i.pull_request && i.title.startsWith(prefix));
+
+            const today = new Date().toISOString().slice(0, 10);
+            const lines = Object.entries(counts).map(([f, n]) => `- ${f}: ${n}`);
+            const body = [
+              `Last scheduled scan: ${today}`,
+              '',
+              'High/Critical findings (security-severity >= 7.0, or level "error" when no score is present):',
+              ...lines,
+              '',
+              `Total: ${total}`,
+              '',
+              `Details: https://github.com/${owner}/${repo}/security/code-scanning`,
+            ].join('\n');
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body,
+              });
+              core.info(`Updated issue #${existing.number}.`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner,
+                repo,
+                title: `${prefix} (${today})`,
+                body,
+                labels: ['security'],
+              });
+              core.info(`Created issue #${created.data.number}.`);
+            }
